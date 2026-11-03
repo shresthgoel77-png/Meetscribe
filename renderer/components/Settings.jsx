@@ -17,7 +17,7 @@ const TABS = [
   { value: 'system', label: 'System', icon: Cpu },
 ];
 
-const TAB_STORAGE_KEY = 'meetscribe.settingsTab';
+const TAB_STORAGE_KEY = 'novameet.settingsTab';
 
 function readStoredTab() {
   try {

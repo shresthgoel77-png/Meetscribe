@@ -36,7 +36,7 @@ mac:
     - target: zip
       arch: [arm64, x64]
   category: public.app-category.productivity
-  icon: icons/icon.png
+  icon: icons/Newicon.png
   minimumSystemVersion: "14.2"
   identity: "-"
   hardenedRuntime: false
@@ -69,9 +69,9 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   artifactName: "${productName}-Setup-${version}.${ext}"
-  installerIcon: icons/newicon.ico
-  uninstallerIcon: icons/newicon.ico
-  installerHeaderIcon: icons/newicon.ico
+  installerIcon: icons/Newicon.ico
+  uninstallerIcon: icons/Newicon.ico
+  installerHeaderIcon: icons/Newicon.ico
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: MeetScribe

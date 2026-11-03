@@ -23,7 +23,7 @@ import { IconButton, SegmentedControl, Skeleton } from './ui/index.jsx';
 const MAX_LOGS = 2000;
 const NEAR_BOTTOM_PX = 48;
 const FALLBACK_POLL_MS = 3000;
-const HIDE_EXT_KEY = 'meetscribe:hide-extension-logs';
+const HIDE_EXT_KEY = 'novameet:hide-extension-logs';
 
 const LEVELS = [
   { value: 'ALL',   label: 'All',   icon: Layers },

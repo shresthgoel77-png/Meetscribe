@@ -43,13 +43,22 @@ function tryListen(port, handlers) {
     });
 
     const socketServer = new WebSocketServer({ server });
+    let listening = false;
 
     server.once('listening', () => {
+      listening = true;
       logger.info(`WebSocket server listening on ws://localhost:${port}`);
       resolve({ wss: socketServer, httpServer: server, port });
     });
 
-    server.once('error', (err) => {
+    // ws forwards HTTP server errors to its own EventEmitter first. Handling
+    // only server.error leaves that forwarded event unhandled and prevents the
+    // bind rejection from reaching the port fallback below.
+    socketServer.on('error', (err) => {
+      if (listening) {
+        logger.error('WebSocket server error', { error: err.message });
+        return;
+      }
       try { socketServer.close(); } catch (_) { /* ignore */ }
       try { server.close(); } catch (_) { /* ignore */ }
       reject(err);

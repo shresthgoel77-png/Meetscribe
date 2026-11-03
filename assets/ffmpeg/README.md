@@ -44,7 +44,7 @@ pnpm run fetch-ffmpeg -- --arch arm64    # just one
 
 For development you can also skip this and `brew install ffmpeg`: the app finds Homebrew's
 `/opt/homebrew/bin` and `/usr/local/bin`. The in-app download installs into the app's data folder
-(`~/Library/Application Support/MeetScribe/ffmpeg/`), never inside the app bundle.
+(`~/Library/Application Support/NovaMeet/ffmpeg/`), never inside the app bundle.
 
 ## Notes
 

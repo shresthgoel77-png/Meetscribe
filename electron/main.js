@@ -13,6 +13,13 @@ const { Readable } = require('stream');
 // Keep existing user profiles in the same location after changing the visible product name.
 app.setPath('userData', path.join(app.getPath('appData'), 'NovaMeet'));
 
+// app.quit() is asynchronous. A secondary instance must stop evaluating this
+// module before it opens the profile or schedules ready-time services.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  return;
+}
+
 const { getConfig, setConfig, setMultipleConfig } = require('./utils/config');
 const logger = require('./utils/logger');
 const { startWebSocketServer, stopWebSocketServer, broadcastToExtension } = require('./websocket-server');
@@ -127,18 +134,12 @@ async function generateAndStampNotes(sessionId, transcript, config, sttInfo) {
   return notes;
 }
 
-// Ensure a single running instance (prevents duplicate windows/tray icons)
-const gotSingleInstanceLock = app.requestSingleInstanceLock();
-if (!gotSingleInstanceLock) {
-  app.quit();
-} else {
-  app.on('second-instance', (_event, argv) => {
-    focusMainWindow();
-    const protocolUrl = argv.find((arg) => typeof arg === 'string' &&
-      (arg.startsWith('meetscribe://') || arg.startsWith('novameet://')));
-    if (protocolUrl) logger.info('Opened via protocol', { protocolUrl });
-  });
-}
+app.on('second-instance', (_event, argv) => {
+  focusMainWindow();
+  const protocolUrl = argv.find((arg) => typeof arg === 'string' &&
+    (arg.startsWith('meetscribe://') || arg.startsWith('novameet://')));
+  if (protocolUrl) logger.info('Opened via protocol', { protocolUrl });
+});
 
 // macOS delivers custom-protocol links through open-url, not argv. Registered before `ready` so the
 // link that launched the app isn't lost; at launch the window opens anyway, so it only needs
@@ -240,11 +241,12 @@ function createMainWindow() {
     minWidth: 800,
     minHeight: 600,
     backgroundColor,
+    icon: getAppIconPath(),
     // Custom titlebar in the renderer. macOS keeps its native traffic lights, inset into the
     // renderer's top bar (which leaves room for them); Windows has no native frame at all.
     ...(isMac
       ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 24, y: 25 } }
-      : { frame: false, backgroundMaterial: 'none', icon: getAppIconPath() }),
+      : { frame: false, backgroundMaterial: 'none' }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -258,6 +260,11 @@ function createMainWindow() {
 
   if (process.platform === 'win32') {
     mainWindow.setIcon(nativeImage.createFromPath(getAppIconPath()));
+    mainWindow.setAppDetails({
+      appId: 'com.novameet.app',
+      // Explorer cannot read inside app.asar; installed builds use the branded executable.
+      appIconPath: app.isPackaged ? process.execPath : getAppIconPath(),
+    });
   }
 
   const rendererUrl = isDev
@@ -303,7 +310,7 @@ function createMainWindow() {
   });
 
   if (isDev) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    mainWindow.webContents.openDevTools({ mode: 'right' });
   }
 
   return mainWindow;
@@ -365,13 +372,11 @@ function resolveIconPath(...candidates) {
 }
 
 function getAppIconPath() {
-  // Prefer .ico on Windows for taskbar / window chrome; fall back to PNG.
+  // Windows uses .ico; macOS and Linux use PNG.
   return resolveIconPath(
+    path.join(__dirname, '../assets/icons', process.platform === 'win32' ? 'Newicon.ico' : 'Newicon.png'),
     path.join(__dirname, '../assets/icons/Newicon.ico'),
-    path.join(__dirname, '../assets/icons/newicon.png'),
-    path.join(__dirname, '../assets/icons/icon.ico'),
-    path.join(__dirname, '../assets/icons/icon256.png'),
-    path.join(__dirname, '../assets/icons/icon128.png'),
+    path.join(__dirname, '../assets/icons/Newicon.png'),
   );
 }
 
@@ -379,19 +384,19 @@ function getTrayIcon() {
   // macOS menu bar: a monochrome template image (trayTemplate@2x.png is picked up for Retina),
   // which macOS tints to match light and dark menu bars.
   if (isMac) {
-    const templatePath = resolveIconPath(path.join(__dirname, '../assets/icons/trayTemplate.png'));
+    const templatePath = resolveIconPath(path.join(__dirname, '../assets/icons/Newicon.png'));
     if (templatePath) {
       const image = nativeImage.createFromPath(templatePath);
-      image.setTemplateImage(true);
+      image.setTemplateImage(false);
       return image;
     }
   }
 
   // Windows tray looks crisp at 16/32; avoid empty/placeholder images.
   const trayPath = resolveIconPath(
-    path.join(__dirname, '../assets/icons/icon32.png'),
-    path.join(__dirname, '../assets/icons/icon16.png'),
-    path.join(__dirname, '../assets/icons/icon.ico'),
+    getAppIconPath(),
+    path.join(__dirname, '../assets/icons/Newicon.png'),
+    path.join(__dirname, '../assets/icons/Newicon.ico'),
   );
 
   if (!trayPath) return nativeImage.createEmpty();
@@ -1825,7 +1830,7 @@ app.whenReady().then(async () => {
 
   createAppMenu();
   // Packaged mac apps get their Dock icon from the bundle's .icns; in dev it's Electron's.
-  if (isMac && !app.isPackaged) app.dock?.setIcon(path.join(__dirname, '../assets/icons/icon.png'));
+  if (isMac && !app.isPackaged) app.dock?.setIcon(getAppIconPath());
   createMainWindow();
   createTray();
 
@@ -1836,14 +1841,14 @@ app.whenReady().then(async () => {
     },
   });
 
-  // Keep meetscribe:// pointed at this installed exe (not a leftover dev registration).
+  // Keep novameet:// pointed at this installed exe (not a leftover dev registration).
   if (app.isPackaged) {
-    app.setAsDefaultProtocolClient('meetscribe');
+    app.setAsDefaultProtocolClient('novameet');
   }
 
-  // Windows cold-start via meetscribe:// puts the URL on process.argv
+  // Windows cold-start via novameet:// puts the URL on process.argv
   const startupProtocolUrl = process.argv.find(
-    (arg) => typeof arg === 'string' && arg.startsWith('meetscribe://'),
+    (arg) => typeof arg === 'string' && arg.startsWith('novameet://'),
   );
   if (startupProtocolUrl) {
     logger.info('Started via protocol', { startupProtocolUrl });
@@ -1916,7 +1921,7 @@ function startCalendarPoller(config) {
       const notif = new Notification({
         title: 'Meeting Starting',
         body: `"${event.title}" is starting now.${event.meetingLink ? ' Click to start recording.' : ''}`,
-        icon: nativeImage.createFromPath(path.join(__dirname, '../assets/icons/icon.png')),
+        icon: nativeImage.createFromPath(getAppIconPath()),
       });
       notif.on('click', () => {
         focusMainWindow();

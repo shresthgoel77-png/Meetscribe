@@ -28,7 +28,7 @@ let dismissSeconds = 10;
 let collapsed = false;
 
 try {
-  collapsed = sessionStorage.getItem('meetscribe-overlay-collapsed') === '1';
+  collapsed = sessionStorage.getItem('novameet-overlay-collapsed') === '1';
 } catch (_) {
   collapsed = false;
 }
@@ -78,7 +78,7 @@ function requestResize() {
 function setCollapsed(next) {
   collapsed = !!next;
   try {
-    sessionStorage.setItem('meetscribe-overlay-collapsed', collapsed ? '1' : '0');
+    sessionStorage.setItem('novameet-overlay-collapsed', collapsed ? '1' : '0');
   } catch (_) { /* ignore */ }
 
   if (collapsed) {

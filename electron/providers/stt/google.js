@@ -17,7 +17,7 @@ const OVERLAP_SECONDS = 5;
 // v1 longrunningrecognize inline limit: ~10 MB request body.
 // 160 s * 16000 Hz * 2 bytes = 5.12 MB raw → ~6.8 MB base64 — safely under the limit.
 const V1_MAX_INLINE_SECONDS = 160;
-const GCS_TEMP_PREFIX = 'meetscribe-temp/';
+const GCS_TEMP_PREFIX = 'novameet-temp/';
 const V1_MODEL = 'latest_long';
 
 /**

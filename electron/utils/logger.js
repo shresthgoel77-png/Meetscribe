@@ -18,7 +18,7 @@ function getLogsDir() {
 function getLogFilePath() {
   if (logFilePath) return logFilePath;
   const logsDir = getLogsDir();
-  logFilePath = path.join(logsDir, `meetscribe-${new Date().toISOString().slice(0, 10)}.log`);
+  logFilePath = path.join(logsDir, `novameet-${new Date().toISOString().slice(0, 10)}.log`);
   return logFilePath;
 }
 

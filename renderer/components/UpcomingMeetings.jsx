@@ -16,7 +16,7 @@ import { useNow } from '../lib/hooks.js';
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const SOON_WINDOW_MS = 15 * 60 * 1000;
-const COLLAPSED_KEY = 'meetscribe.upcomingCollapsed';
+const COLLAPSED_KEY = 'novameet.upcomingCollapsed';
 
 function getEventStatus(event, now) {
   const start = new Date(event.start).getTime();

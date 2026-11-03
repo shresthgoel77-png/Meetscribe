@@ -18,7 +18,7 @@ exports.default = async function afterPack(context) {
 
   const productName = context.packager.appInfo.productFilename || 'MeetScribe';
   const exePath = path.join(context.appOutDir, `${productName}.exe`);
-  const iconPath = path.join(context.packager.projectDir, 'assets', 'icons', 'icon.ico');
+  const iconPath = path.join(context.packager.projectDir, 'assets', 'icons', 'Newicon.ico');
   const rceditBin = path.join(
     context.packager.projectDir,
     'node_modules',

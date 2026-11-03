@@ -1,6 +1,6 @@
 'use strict';
 
-const PROTOCOL_URL = 'meetscribe://open';
+const PROTOCOL_URL = 'novameet://open';
 const statusEl = document.getElementById('status');
 const hintEl = document.getElementById('hint');
 const launchEl = document.getElementById('launch');
