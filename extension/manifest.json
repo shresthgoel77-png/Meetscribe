@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "NovaMeet",
+  "name": "MeetScribe",
   "version": "0.1.0",
-  "description": "AI meeting notes — auto-detects Google Meet & Zoom. Requires the NovaMeet desktop app.",
+  "description": "AI meeting notes — auto-detects Google Meet & Zoom. Requires the MeetScribe desktop app.",
   "permissions": [
     "tabs",
     "activeTab",
@@ -37,7 +37,7 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "NovaMeet"
+    "default_title": "MeetScribe"
   },
   "icons": {
     "16": "icons/icon16.png",

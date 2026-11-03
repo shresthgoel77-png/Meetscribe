@@ -97,7 +97,7 @@ describe('Groq STT', () => {
   });
 
   it('transcribes chunks, offsets timestamps and retries after a 429', async () => {
-    const file = path.join(os.tmpdir(), `novameet-groq-${Date.now()}.wav`);
+    const file = path.join(os.tmpdir(), `meetscribe-groq-${Date.now()}.wav`);
     fs.writeFileSync(file, Buffer.alloc(10));
     const responses = [
       fakeResponse(429, { error: { message: 'rate limit' } }, { 'retry-after': '1' }),

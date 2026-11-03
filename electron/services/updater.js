@@ -200,7 +200,7 @@ function initializeAutoUpdater({ sendToRenderer, onUpdateDownloaded }) {
   onUpdateDownloadedCallback = onUpdateDownloaded;
 
   runPostUpdateCheck();
-  logger.info('AutoUpdater: update checks disabled for NovaMeet build');
+  logger.info('AutoUpdater: update checks disabled for MeetScribe build');
 }
 
 async function checkForUpdates(manual = false) {

@@ -22,9 +22,9 @@ export default function IntegrationsSection({ form, onChange }) {
 
   useEffect(() => {
     async function loadCalendarStatus() {
-      if (!window.novameet?.calendar?.getStatus) return;
+      if (!window.meetscribe?.calendar?.getStatus) return;
       try {
-        const status = await window.novameet.calendar.getStatus();
+        const status = await window.meetscribe.calendar.getStatus();
         setCalendarStatus(status);
       } catch {}
     }
@@ -35,7 +35,7 @@ export default function IntegrationsSection({ form, onChange }) {
     setTestingNotion(true);
     setNotionResult(null);
     try {
-      const result = await window.novameet.notion.testConnection(form.notionApiKey, form.notionDatabaseId);
+      const result = await window.meetscribe.notion.testConnection(form.notionApiKey, form.notionDatabaseId);
       setNotionResult(result);
     } catch (err) {
       setNotionResult({ success: false, error: err.message });
@@ -53,11 +53,11 @@ export default function IntegrationsSection({ form, onChange }) {
     setCalendarError(null);
     try {
       // Save credentials first so the main process can use them
-      await window.novameet.config.setMultiple({
+      await window.meetscribe.config.setMultiple({
         googleCalendarClientId: form.googleCalendarClientId,
         googleCalendarClientSecret: form.googleCalendarClientSecret,
       });
-      const result = await window.novameet.calendar.auth();
+      const result = await window.meetscribe.calendar.auth();
       if (result.success) {
         setCalendarStatus({ connected: true, email: result.email || '' });
       } else {
@@ -79,7 +79,7 @@ export default function IntegrationsSection({ form, onChange }) {
     });
     if (!ok) return;
     try {
-      await window.novameet.calendar.disconnect();
+      await window.meetscribe.calendar.disconnect();
       setCalendarStatus({ connected: false, email: '' });
       setCalendarError(null);
     } catch (err) {
@@ -113,7 +113,7 @@ export default function IntegrationsSection({ form, onChange }) {
         <TextField
           id="notion-target"
           label="Parent page or database ID"
-          hint={'Paste the 32-character ID or full Notion URL. Connect the NovaMeet integration from the page or database "..." menu first.'}
+          hint={'Paste the 32-character ID or full Notion URL. Connect the MeetScribe integration from the page or database "..." menu first.'}
           value={form.notionDatabaseId || ''}
           onChange={(e) => onChange('notionDatabaseId', e.target.value.trim())}
           placeholder="Page ID, database ID, or full Notion URL"

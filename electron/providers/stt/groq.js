@@ -19,7 +19,7 @@ function authHeaders(apiKey) {
   return { Authorization: `Bearer ${apiKey.trim()}` };
 }
 
-/** Map Groq `verbose_json` segments to NovaMeet segments, shifted by the chunk offset. */
+/** Map Groq `verbose_json` segments to MeetScribe segments, shifted by the chunk offset. */
 function parseGroqSegments(response, offsetSeconds = 0) {
   const raw = Array.isArray(response?.segments) ? response.segments : [];
   const segments = [];

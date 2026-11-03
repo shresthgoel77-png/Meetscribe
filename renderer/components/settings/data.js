@@ -3,9 +3,9 @@
 export const KEY_GUIDES = {
   notion: [
     { text: 'Go to the Notion Integrations page', url: 'https://www.notion.so/profile/integrations' },
-    { text: 'Click "+ New integration", name it "NovaMeet", select your workspace' },
+    { text: 'Click "+ New integration", name it "MeetScribe", select your workspace' },
     { text: 'Copy the "Internal Integration Secret" and paste it into the API key field' },
-    { text: 'Open your target Notion page or database → "..." menu → "Connect to" → select "NovaMeet"' },
+    { text: 'Open your target Notion page or database → "..." menu → "Connect to" → select "MeetScribe"' },
     { text: 'Copy the Page ID, Database ID, or full Notion URL and paste it into the page field', hint: 'You can paste the 32-character ID or the full URL directly from your browser' },
   ],
   'google-calendar': [

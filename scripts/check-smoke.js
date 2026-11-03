@@ -29,7 +29,7 @@ function summaryMarkdown(report, label) {
   return [
     `### Smoke test${label ? `: ${label}` : ''} — ${report.ok ? 'passed' : 'FAILED'}`,
     '',
-    `NovaMeet ${report.version} · ${report.platform} ${report.arch}${report.packaged ? ' · packaged' : ''}`,
+    `MeetScribe ${report.version} · ${report.platform} ${report.arch}${report.packaged ? ' · packaged' : ''}`,
     '',
     '| | Check | Detail |',
     '| --- | --- | --- |',

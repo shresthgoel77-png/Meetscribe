@@ -60,7 +60,7 @@ const FOOTER_TEMPLATE = `
 async function exportPdf({ html, fileName, dir }) {
   const targetDir = resolveExportDir(dir);
   let win = null;
-  const tmpFile = path.join(os.tmpdir(), `novameet-pdf-${process.pid}-${Date.now()}.html`);
+  const tmpFile = path.join(os.tmpdir(), `meetscribe-pdf-${process.pid}-${Date.now()}.html`);
 
   try {
     fs.mkdirSync(targetDir, { recursive: true });
@@ -101,7 +101,7 @@ async function exportPdf({ html, fileName, dir }) {
     logger.error('PDF export failed', { dir: targetDir, error: err.message });
     const folderProblem = ['EACCES', 'EPERM', 'ENOENT', 'EROFS', 'ENOTDIR', 'EINVAL'].includes(err.code);
     const reason = folderProblem
-      ? `NovaMeet can't save to ${targetDir}. Choose another folder in Settings → Notes → PDF export.`
+      ? `MeetScribe can't save to ${targetDir}. Choose another folder in Settings → Notes → PDF export.`
       : err.message;
     return { success: false, error: reason };
   } finally {

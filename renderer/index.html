@@ -4,12 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; media-src 'self' novameet-audio:; img-src 'self' data:;" />
-  <title>NovaMeet</title>
+    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; media-src 'self' meetscribe-audio: novameet-audio:; img-src 'self' data:;" />
+  <title>MeetScribe</title>
   <!-- Apply the saved theme before the first paint, so the splash never flashes the wrong one. -->
   <script>
     try {
-      var t = window.novameet && window.novameet.startupTheme;
+      var t = window.meetscribe && window.meetscribe.startupTheme;
       if (t === 'dark' || t === 'light') document.documentElement.classList.add(t);
     } catch (e) { /* theme is cosmetic */ }
   </script>
@@ -80,7 +80,7 @@
         </g>
       </svg>
     </div>
-    <p class="splash-word">NovaMeet</p>
+    <p class="splash-word">MeetScribe</p>
   </div>
   <div id="root"></div>
   <script type="module" src="/main.jsx"></script>

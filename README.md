@@ -1,8 +1,8 @@
-# NovaMeet
+# MeetScribe
 
 **AI-powered meeting recording, transcription, and structured notes for the desktop.**
 
-NovaMeet is an open-source desktop application built with Electron and React. It captures system audio and microphone input, turns recordings into timestamped transcripts, and generates meeting summaries, decisions, and action items using your preferred AI providers. Meetings remain accessible in a local library, with optional Notion publishing, Google Calendar integration, and Markdown and PDF output.
+MeetScribe is an open-source desktop application built with Electron and React. It captures system audio and microphone input, turns recordings into timestamped transcripts, and generates meeting summaries, decisions, and action items using your preferred AI providers. Meetings remain accessible in a local library, with optional Notion publishing, Google Calendar integration, and Markdown and PDF output.
 
 ## Contents
 
@@ -23,7 +23,7 @@ NovaMeet is an open-source desktop application built with Electron and React. It
 
 ## Capabilities
 
-| Area | What NovaMeet provides |
+| Area | What MeetScribe provides |
 | --- | --- |
 | Recording | System audio and microphone capture, live input meters, and local audio playback with a waveform. |
 | Transcription | Google Cloud Speech-to-Text, Sarvam AI, AssemblyAI, and Groq Whisper, with timestamped segments and speaker labels where supported. |
@@ -48,7 +48,7 @@ The current macOS packaging configuration uses ad-hoc signing and is not notariz
 
 ## Architecture
 
-NovaMeet runs as a local Electron application. The main process manages operating system access, persistence, processing, and integrations; the renderer presents the interface and performs the primary audio capture. Cloud requests are delegated to provider modules in the main process.
+MeetScribe runs as a local Electron application. The main process manages operating system access, persistence, processing, and integrations; the renderer presents the interface and performs the primary audio capture. Cloud requests are delegated to provider modules in the main process.
 
 ```mermaid
 flowchart TD
@@ -73,7 +73,7 @@ flowchart TD
 | Component | Responsibility |
 | --- | --- |
 | Electron main process | `electron/main.js` coordinates windows, tray actions, recording state, IPC handlers, session processing, and integrations. |
-| Preload bridge | `electron/preload.js` exposes the `window.novameet` API for settings, sessions, capture events, exports, and integrations. Context isolation is enabled and renderer Node.js integration is disabled. |
+| Preload bridge | `electron/preload.js` exposes the `window.meetscribe` API for settings, sessions, capture events, exports, and integrations. Context isolation is enabled and renderer Node.js integration is disabled. |
 | React renderer | `renderer/app.jsx` and `renderer/components/` implement the dashboard, meeting library, note and transcript viewers, settings, and capture controls. Vite builds the main and overlay entry points. |
 | Audio services | `electron/audio/` handles FFmpeg resolution, conversion, Windows device enumeration and fallback recording, waveform extraction, and macOS capture strategy definitions. |
 | Provider registry | `electron/providers/` defines separate speech-to-text and language-model registries. Provider descriptors supply credentials, models, capabilities, and connection tests to Settings. |
@@ -118,13 +118,13 @@ docs/                     Detailed architecture and integration guides
 
 ## System audio and microphone capture
 
-System audio loopback captures sound playing through the computer's audio output, including remote participants in a call. The microphone captures local speech. NovaMeet combines these inputs so a recording can include both sides of a meeting.
+System audio loopback captures sound playing through the computer's audio output, including remote participants in a call. The microphone captures local speech. MeetScribe combines these inputs so a recording can include both sides of a meeting.
 
 Loopback is an output capture mechanism, so unrelated application sounds can also enter the recording. Use headphones to reduce acoustic echo and play a short test clip before an important meeting.
 
 ### Primary capture pipeline
 
-The renderer requests system audio with `navigator.mediaDevices.getDisplayMedia()` and microphone input with `getUserMedia()`. Electron's display-media request handler supplies a loopback audio stream. Although the display-media request includes video, NovaMeet stops the video track immediately and records audio only.
+The renderer requests system audio with `navigator.mediaDevices.getDisplayMedia()` and microphone input with `getUserMedia()`. Electron's display-media request handler supplies a loopback audio stream. Although the display-media request includes video, MeetScribe stops the video track immediately and records audio only.
 
 An `AudioContext` mixes the available audio inputs into a `MediaStreamDestination`. `MediaRecorder` encodes the result as WebM, using Opus when available, and emits chunks approximately once per second. The preload bridge forwards those chunks to the main process, which appends them to a local file. On stop, FFmpeg converts the recording to the WAV format used by the transcription pipeline.
 
@@ -134,7 +134,7 @@ System and microphone meters monitor the inputs independently. A missing microph
 
 The preferred Windows path uses Chromium's **Windows Audio Session API (WASAPI)** loopback through Electron. It captures playback from the default output device, including speakers and wired, USB, or Bluetooth headphones, without requiring Stereo Mix or a virtual audio cable.
 
-If renderer capture cannot start, NovaMeet attempts direct FFmpeg recording:
+If renderer capture cannot start, MeetScribe attempts direct FFmpeg recording:
 
 1. Use the configured system audio and microphone devices, preferring WASAPI loopback for system audio.
 2. If FFmpeg reports an unsupported loopback option, attempt a detected DirectShow loopback source such as Stereo Mix or a virtual cable output.
@@ -148,7 +148,7 @@ Before recording, confirm that the meeting application is playing through the in
 
 On macOS 14.2 and later, Electron's loopback integration uses the **Core Audio tap API** to capture system playback. The application includes microphone and audio-capture usage descriptions in its packaging configuration.
 
-Open **System Settings > Privacy & Security** and allow NovaMeet to use:
+Open **System Settings > Privacy & Security** and allow MeetScribe to use:
 
 - **Microphone**, for local speech.
 - **Screen & System Audio Recording**, for system playback capture. The permission name can vary with macOS version.
@@ -158,7 +158,7 @@ Under **Settings > System > Test system audio**, play a video or music and test 
 | Strategy | Behavior |
 | --- | --- |
 | `screen` | Default. Supplies a screen from Electron's desktop capturer as the display-media video source, alongside loopback audio. |
-| `frame` | Supplies NovaMeet's own window frame where available. This is an alternative to test on the target Mac; it is not a guarantee that screen recording permission can be avoided. |
+| `frame` | Supplies MeetScribe's own window frame where available. This is an alternative to test on the target Mac; it is not a guarantee that screen recording permission can be avoided. |
 | `picker` | Requests the macOS system picker when available; otherwise Electron uses the registered display-media handler. |
 
 Select the strategy that detects actual audio on the target machine. These tests make short captures, so system playback must be active while testing. The strategy is stored as `macCaptureStrategy`.
@@ -167,7 +167,7 @@ macOS has no direct FFmpeg system-audio fallback in this application. If system 
 
 ## AI providers and model configuration
 
-NovaMeet configures speech recognition and note generation independently. For example, a meeting can use AssemblyAI for transcription and Gemini for notes, or Groq for both stages. Only the providers you select need credentials, except when an additional note-generation fallback is enabled.
+MeetScribe configures speech recognition and note generation independently. For example, a meeting can use AssemblyAI for transcription and Gemini for notes, or Groq for both stages. Only the providers you select need credentials, except when an additional note-generation fallback is enabled.
 
 The following models are declared in this checkout's provider registry. Their presence in Settings does not guarantee access for a particular provider account; use the connection test to check your credentials and selected model.
 
@@ -261,11 +261,11 @@ In Windows PowerShell, use `npm.cmd` and `pnpm.cmd` if script execution policy b
 
 ### 2. Clone and install dependencies
 
-Replace `<repository-url>` with the URL of your NovaMeet repository. The explicit destination keeps subsequent commands consistent:
+Replace `<repository-url>` with the URL of your MeetScribe repository. The explicit destination keeps subsequent commands consistent:
 
 ```sh
-git clone <repository-url> NovaMeet
-cd NovaMeet
+git clone <repository-url> MeetScribe
+cd MeetScribe
 pnpm install --frozen-lockfile
 ```
 
@@ -339,7 +339,7 @@ AssemblyAI is configured through `assemblyAiApiKey` in Settings even though the 
 
 ### Notion
 
-In **Settings > Integrations**, enter an integration token and a destination page or database ID, or its full Notion URL. Grant the integration access to that destination in Notion, test the connection, and save the settings. NovaMeet can publish generated notes to the configured destination, with an option to include the transcript. Local notes and exports remain available without Notion.
+In **Settings > Integrations**, enter an integration token and a destination page or database ID, or its full Notion URL. Grant the integration access to that destination in Notion, test the connection, and save the settings. MeetScribe can publish generated notes to the configured destination, with an option to include the transcript. Local notes and exports remain available without Notion.
 
 ### Google Calendar
 
@@ -355,7 +355,7 @@ For local development:
 2. Enable **Developer mode**, choose **Load unpacked**, and select the repository's `extension/` directory.
 3. Open a supported meeting page and check the extension's desktop connection.
 
-`pnpm run build:ext` also creates `dist/novameet-extension.zip`. The desktop bridge binds to `127.0.0.1`, starting at port `39842` and trying through `39852` when ports are occupied. It is a local companion connection, not a hosted backend.
+`pnpm run build:ext` also creates `dist/meetscribe-extension.zip`. The desktop bridge binds to `127.0.0.1`, starting at port `39842` and trying through `39852` when ports are occupied. It is a local companion connection, not a hosted backend.
 
 ## Development commands and validation
 
@@ -402,7 +402,7 @@ Platform targets, bundled resources, permissions, signing options, and artifact 
 
 ## Local data and credentials
 
-NovaMeet uses Electron's application data directory, resolved at runtime by `app.getPath('userData')`, to store:
+MeetScribe uses Electron's application data directory, resolved at runtime by `app.getPath('userData')`, to store:
 
 | Location within application data | Contents |
 | --- | --- |
@@ -423,9 +423,9 @@ Recordings and the meeting library are local, but AI processing is cloud-based: 
 | FFmpeg or FFprobe is missing | Run `pnpm run fetch-ffmpeg` and check **Settings > System**. For packaged builds, ensure both binaries were present in the platform asset folder before packaging. |
 | Windows recording contains only local speech | Confirm remote audio is playing through the default output device. Check the system meter and playback. If logs show FFmpeg fallback, inspect whether a DirectShow loopback device was found or recording fell back to microphone only. |
 | Windows microphone is silent | Check mute controls, the input device, and Windows microphone privacy access for desktop applications. A working system meter does not confirm microphone capture. |
-| macOS system audio is silent | Check **Privacy & Security** permissions, restart NovaMeet after changes, and test each capture strategy under **Settings > System** while audio is playing. Revisit permissions after updates. |
-| macOS shows permission granted but capture still fails | Remove NovaMeet from the affected permission list in System Settings and allow it again, then restart and repeat the capture test. |
-| Transcription reports a silent recording | Play back the audio and inspect both input meters. NovaMeet checks amplitude before sending audio to the speech-to-text adapter. Resolve capture first. |
+| macOS system audio is silent | Check **Privacy & Security** permissions, restart MeetScribe after changes, and test each capture strategy under **Settings > System** while audio is playing. Revisit permissions after updates. |
+| macOS shows permission granted but capture still fails | Remove MeetScribe from the affected permission list in System Settings and allow it again, then restart and repeat the capture test. |
+| Transcription reports a silent recording | Play back the audio and inspect both input meters. MeetScribe checks amplitude before sending audio to the speech-to-text adapter. Resolve capture first. |
 | Credentials in `.env` have no effect | Enter them in Settings and save. The current runtime does not load provider configuration from `.env`. |
 | A provider or model fails | Test the selected provider, check model access and quota, and inspect Logs. For Google, verify the API mode and credentials; BatchRecognize requires an explicit service account file path. |
 | Notes work with an unexpected provider | Review the configured note-generation fallback. It can be attempted when the primary fails or its response cannot be parsed. |
@@ -451,4 +451,4 @@ To add an AI provider, create an adapter under `electron/providers/stt/` or `ele
 
 ## License
 
-NovaMeet is distributed under the [MIT License](LICENSE). Bundled third-party components, including FFmpeg, retain their respective licenses; see the [FFmpeg asset notes](assets/ffmpeg/README.md).
+MeetScribe is distributed under the [MIT License](LICENSE). Bundled third-party components, including FFmpeg, retain their respective licenses; see the [FFmpeg asset notes](assets/ffmpeg/README.md).

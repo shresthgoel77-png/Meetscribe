@@ -26,13 +26,13 @@ export default function AudioPlayer({ sessionId, title, durationLabel, showWavef
   const [waveform, setWaveform] = useState(null);
 
   useEffect(() => {
-    if (!showWaveform || !sessionId || !window.novameet?.sessions?.waveform) {
+    if (!showWaveform || !sessionId || !window.meetscribe?.sessions?.waveform) {
       setWaveform(null);
       return undefined;
     }
     let cancelled = false;
     setWaveform({ status: 'loading', peaks: null, duration: 0 });
-    window.novameet.sessions.waveform(sessionId)
+    window.meetscribe.sessions.waveform(sessionId)
       .then((result) => {
         if (cancelled) return;
         setWaveform(result?.success
@@ -61,7 +61,7 @@ export default function AudioPlayer({ sessionId, title, durationLabel, showWavef
   const effectiveDuration = duration || waveform?.duration || 0;
   const useWaveform = showWaveform && waveform && waveform.status !== 'error';
 
-  const audioSrc = sessionId ? `novameet-audio://session/${sessionId}` : '';
+  const audioSrc = sessionId ? `meetscribe-audio://session/${sessionId}` : '';
 
   const changeSpeed = () => {
     const nextSpeed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
@@ -90,7 +90,7 @@ export default function AudioPlayer({ sessionId, title, durationLabel, showWavef
     setOpening(true);
     setOpenMessage(null);
     try {
-      const result = await window.novameet.sessions.openRecording(sessionId);
+      const result = await window.meetscribe.sessions.openRecording(sessionId);
       if (!result?.success) {
         setOpenMessage(result?.error || 'Recording file not found for this session.');
       }

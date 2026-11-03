@@ -1,5 +1,5 @@
 /**
- * NovaMeet Background Service Worker
+ * MeetScribe Background Service Worker
  *
  * Responsibilities:
  * - Detect active Google Meet / Zoom tabs
@@ -35,7 +35,7 @@ function connectWebSocket() {
   ws.onopen = () => {
     wsConnected = true;
     clearTimeout(reconnectTimer);
-    console.log('[NovaMeet] Connected to desktop app');
+    console.log('[MeetScribe] Connected to desktop app');
     updateBadge('connected');
     startHeartbeat();
 
@@ -156,7 +156,7 @@ function openProtocolBridgeTab() {
 
   chrome.tabs.create({ url: openPage, active: true }, (tab) => {
     if (chrome.runtime.lastError) {
-      console.warn('[NovaMeet] Failed to open app bridge tab:', chrome.runtime.lastError.message);
+      console.warn('[MeetScribe] Failed to open app bridge tab:', chrome.runtime.lastError.message);
       return;
     }
     if (tab?.id != null) {
@@ -174,7 +174,7 @@ function launchDesktopApp() {
 
   tryHttpOpenApp().then((raised) => {
     if (raised) {
-      console.log('[NovaMeet] Raised desktop app via HTTP /open');
+      console.log('[MeetScribe] Raised desktop app via HTTP /open');
       closeOpenAppTab();
       connectWebSocket();
     }
@@ -204,7 +204,7 @@ function closeOpenAppTab() {
 // ── Handle messages from desktop app ─────────────────────────────────────────
 
 function handleDesktopMessage(msg) {
-  console.log('[NovaMeet] Desktop message:', msg.type);
+  console.log('[MeetScribe] Desktop message:', msg.type);
 
   switch (msg.type) {
     case 'APP_STATUS':
@@ -273,10 +273,10 @@ function handleDesktopMessage(msg) {
 
 function updateBadge(state) {
   const badges = {
-    connected:    { text: '',   color: '#22c55e', title: 'NovaMeet — Connected'     },
-    disconnected: { text: '!',  color: '#6b7280', title: 'NovaMeet — App not running' },
-    recording:    { text: 'REC', color: '#ef4444', title: 'NovaMeet — Recording'    },
-    meeting:      { text: '●',  color: '#22c55e', title: 'NovaMeet — Meeting detected' },
+    connected:    { text: '',   color: '#22c55e', title: 'MeetScribe — Connected'     },
+    disconnected: { text: '!',  color: '#6b7280', title: 'MeetScribe — App not running' },
+    recording:    { text: 'REC', color: '#ef4444', title: 'MeetScribe — Recording'    },
+    meeting:      { text: '●',  color: '#22c55e', title: 'MeetScribe — Meeting detected' },
   };
 
   const b = badges[state] || badges.disconnected;
@@ -315,7 +315,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     activeMeetingTabId = tabId;
     const platform = getMeetingPlatform(tab.url);
 
-    console.log('[NovaMeet] Meeting detected:', tab.url);
+    console.log('[MeetScribe] Meeting detected:', tab.url);
     updateBadge(wsConnected ? 'meeting' : 'disconnected');
 
     // Connect to desktop app if not already
@@ -358,7 +358,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // Messages from content script / overlay
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('[NovaMeet] Content message:', message.type);
+  console.log('[MeetScribe] Content message:', message.type);
 
   switch (message.type) {
     case 'START_RECORDING': {

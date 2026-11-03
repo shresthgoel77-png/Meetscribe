@@ -709,7 +709,7 @@ async function testNotionConnection(parentId, notionToken) {
 }
 
 /**
- * Moves a page NovaMeet created earlier to Notion's trash (restorable there for 30 days).
+ * Moves a page MeetScribe created earlier to Notion's trash (restorable there for 30 days).
  * Used after a re-sync has created the replacement page, so a meeting keeps one page in Notion.
  * Never throws: a page that's already gone or no longer shared is simply skipped.
  */

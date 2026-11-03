@@ -19,13 +19,22 @@ export default function ModelSelect({ idPrefix, label, provider, value, onChange
         value={curated ? value : undefined}
         onChange={onChange}
         className="grid grid-cols-1 md:grid-cols-2 gap-16"
-        renderOption={(model) => (
+        renderOption={(model, selected) => (
           <span className="block">
             <span className="flex flex-wrap items-center gap-8">
-              <span className="text-body-sm font-medium text-ink">{model.name}</span>
-              <span className="pill-quiet">{model.badge}</span>
+              <span className="text-body-sm font-medium text-ink" style={selected ? { color: '#FFFFFF' } : undefined}>
+                {model.name}
+              </span>
+              <span className="pill-quiet" style={selected ? { color: '#FFFFFF' } : undefined}>
+                {model.badge}
+              </span>
             </span>
-            <span className="block text-caption text-graphite mt-8">{model.description}</span>
+            <span
+              className="block text-caption text-graphite mt-8"
+              style={selected ? { color: '#FFFFFF' } : undefined}
+            >
+              {model.description}
+            </span>
           </span>
         )}
       />

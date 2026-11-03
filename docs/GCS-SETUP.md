@@ -1,6 +1,6 @@
 # GCS setup for Speech-to-Text v2 BatchRecognize
 
-NovaMeet can use **Speech-to-Text v2 BatchRecognize** for long meetings without chunking. BatchRecognize only accepts audio from **Google Cloud Storage** (GCS). This guide sets up the bucket and credentials.
+MeetScribe can use **Speech-to-Text v2 BatchRecognize** for long meetings without chunking. BatchRecognize only accepts audio from **Google Cloud Storage** (GCS). This guide sets up the bucket and credentials.
 
 ---
 
@@ -9,15 +9,15 @@ NovaMeet can use **Speech-to-Text v2 BatchRecognize** for long meetings without 
 
 | Who / What                 | Purpose                                            | Access needed                                             |
 | -------------------------- | -------------------------------------------------- | --------------------------------------------------------- |
-| **Your app (NovaMeet)**    | Upload WAV to GCS, then delete after transcription | **Write + Delete** on the bucket (or a folder in it)      |
+| **Your app (MeetScribe)**    | Upload WAV to GCS, then delete after transcription | **Write + Delete** on the bucket (or a folder in it)      |
 | **Speech-to-Text service** | Read the WAV from GCS to transcribe                | **Read** on the bucket (same project = usually automatic) |
 
 
 You will:
 
 1. Create a GCS bucket (same project as Speech-to-Text).
-2. Create a **service account** for NovaMeet with access to that bucket.
-3. Download the service account **JSON key** and point NovaMeet to it.
+2. Create a **service account** for MeetScribe with access to that bucket.
+3. Download the service account **JSON key** and point MeetScribe to it.
 4. Ensure the **Speech-to-Text service agent** can read from the bucket (same project is enough in most cases).
 
 ---
@@ -34,24 +34,24 @@ You will:
 1. Open [Google Cloud Console](https://console.cloud.google.com) and select your project.
 2. Go to **Cloud Storage** → **Buckets** ([direct link](https://console.cloud.google.com/storage/browser)).
 3. Click **Create bucket**.
-4. Choose a **name** (e.g. `novameet-transcribe`) and a **region** (same as or close to your usage).
+4. Choose a **name** (e.g. `meetscribe-transcribe`) and a **region** (same as or close to your usage).
 5. Leave **Uniform** access control (recommended).
 6. Click **Create**.
 
 ---
 
-## 3. Create a service account for NovaMeet
+## 3. Create a service account for MeetScribe
 
 The app needs an identity that can upload and delete objects in the bucket.
 
 1. Go to **IAM & Admin** → **Service Accounts** ([direct link](https://console.cloud.google.com/iam-admin/serviceaccounts)).
 2. Click **Create service account**.
-3. **Service account name**: e.g. `novameet-upload`.
+3. **Service account name**: e.g. `meetscribe-upload`.
 4. Click **Create and Continue**.
 5. **Grant access** (optional but recommended for least privilege):
   - Click **Add another role**.
   - Choose **Cloud Storage** → **Storage Object Admin** (or **Storage Object Creator** + **Storage Object Deleter**).
-  - Under “Limit access to specific resources”, click **Limit access**, choose **Bucket**, select your bucket (e.g. `novameet-transcribe`).
+  - Under “Limit access to specific resources”, click **Limit access**, choose **Bucket**, select your bucket (e.g. `meetscribe-transcribe`).
   - Alternatively, skip limiting and the SA will have access to all buckets in the project; you can restrict later.
 6. Click **Done**.
 
@@ -59,13 +59,13 @@ The app needs an identity that can upload and delete objects in the bucket.
 
 ## 4. Create and download the JSON key
 
-1. On the **Service Accounts** list, click the service account you created (e.g. `novameet-upload`).
+1. On the **Service Accounts** list, click the service account you created (e.g. `meetscribe-upload`).
 2. Open the **Keys** tab.
 3. **Add key** → **Create new key** → **JSON** → **Create**.
-4. The JSON file downloads. Store it somewhere safe (e.g. `C:\Users\<You>\.config\novameet\gcs-key.json`).
-5. In NovaMeet **Settings**, set **Service account key path** to this file path (e.g. `C:\Users\You\.config\novameet\gcs-key.json`).
+4. The JSON file downloads. Store it somewhere safe (e.g. `C:\Users\<You>\.config\meetscribe\gcs-key.json`).
+5. In MeetScribe **Settings**, set **Service account key path** to this file path (e.g. `C:\Users\You\.config\meetscribe\gcs-key.json`).
 
-**Alternative:** Set the environment variable `GOOGLE_APPLICATION_CREDENTIALS` to the full path of this JSON file. Then you can leave the key path empty in NovaMeet.
+**Alternative:** Set the environment variable `GOOGLE_APPLICATION_CREDENTIALS` to the full path of this JSON file. Then you can leave the key path empty in MeetScribe.
 
 ---
 
@@ -90,31 +90,31 @@ To find the agent and grant access:
 
 ---
 
-## 6. Configure NovaMeet
+## 6. Configure MeetScribe
 
-In NovaMeet **Settings**:
+In MeetScribe **Settings**:
 
 
 | Field                                   | Value                                                                                     |
 | --------------------------------------- | ----------------------------------------------------------------------------------------- |
 | **Google Cloud API Key**                | Your Speech-to-Text API key (unchanged).                                                  |
 | **Google Cloud Project ID**             | Your GCP project ID (e.g. `my-project-123`).                                              |
-| **GCS bucket (optional)**               | Bucket name only (e.g. `novameet-transcribe`).                                            |
+| **GCS bucket (optional)**               | Bucket name only (e.g. `meetscribe-transcribe`).                                            |
 | **Service account key path (optional)** | Full path to the JSON key file, or leave empty if using `GOOGLE_APPLICATION_CREDENTIALS`. |
 
 
-With **Project ID** and **GCS bucket** set, NovaMeet will use **BatchRecognize** for all v2 transcriptions (no chunking). If the bucket is left empty, v2 will use chunked sync recognize instead.
+With **Project ID** and **GCS bucket** set, MeetScribe will use **BatchRecognize** for all v2 transcriptions (no chunking). If the bucket is left empty, v2 will use chunked sync recognize instead.
 
 ---
 
 ## 7. Quick checklist
 
 - Project has Speech-to-Text API enabled and billing on.
-- GCS bucket created (e.g. `novameet-transcribe`).
+- GCS bucket created (e.g. `meetscribe-transcribe`).
 - Service account created with **Storage Object Admin** (or Creator + Deleter) on that bucket.
-- JSON key downloaded and path set in NovaMeet (or `GOOGLE_APPLICATION_CREDENTIALS` set).
+- JSON key downloaded and path set in MeetScribe (or `GOOGLE_APPLICATION_CREDENTIALS` set).
 - Speech-to-Text service agent has **Storage Object Viewer** on the bucket (automatic when bucket is in same project in most cases).
-- NovaMeet Settings: **Project ID** and **GCS bucket** filled in.
+- MeetScribe Settings: **Project ID** and **GCS bucket** filled in.
 
 ---
 

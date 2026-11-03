@@ -8,16 +8,16 @@ const { silenceHints } = require('../electron/audio/audio-hints.js');
 const WIN = {
   platform: 'win32',
   arch: 'x64',
-  resourcesPath: 'C:\\Program Files\\NovaMeet\\resources',
-  appRoot: 'C:\\dev\\novameet',
+  resourcesPath: 'C:\\Program Files\\MeetScribe\\resources',
+  appRoot: 'C:\\dev\\meetscribe',
   userData: 'C:\\Users\\me\\AppData\\Roaming\\NovaMeet',
 };
 
 const MAC = {
   platform: 'darwin',
   arch: 'arm64',
-  resourcesPath: '/Applications/NovaMeet.app/Contents/Resources',
-  appRoot: '/Users/me/novameet',
+  resourcesPath: '/Applications/MeetScribe.app/Contents/Resources',
+  appRoot: '/Users/me/meetscribe',
   userData: '/Users/me/Library/Application Support/NovaMeet',
 };
 
@@ -39,19 +39,19 @@ describe('devBinaryDir', () => {
 describe('ffmpegCandidates', () => {
   it('packaged Windows: only the bundled binary in resources', () => {
     expect(ffmpegCandidates('ffmpeg', { ...WIN, isPackaged: true })).toEqual([
-      { source: 'bundled', path: 'C:\\Program Files\\NovaMeet\\resources\\ffmpeg\\ffmpeg.exe' },
+      { source: 'bundled', path: 'C:\\Program Files\\MeetScribe\\resources\\ffmpeg\\ffmpeg.exe' },
     ]);
   });
 
   it('development Windows: assets/ffmpeg at the repo root', () => {
     expect(ffmpegCandidates('ffprobe', { ...WIN, isPackaged: false })).toEqual([
-      { source: 'bundled', path: 'C:\\dev\\novameet\\assets\\ffmpeg\\ffprobe.exe' },
+      { source: 'bundled', path: 'C:\\dev\\meetscribe\\assets\\ffmpeg\\ffprobe.exe' },
     ]);
   });
 
   it('packaged macOS: bundled, then the in-app install in userData, then Homebrew', () => {
     expect(ffmpegCandidates('ffmpeg', { ...MAC, isPackaged: true })).toEqual([
-      { source: 'bundled', path: '/Applications/NovaMeet.app/Contents/Resources/ffmpeg/ffmpeg' },
+      { source: 'bundled', path: '/Applications/MeetScribe.app/Contents/Resources/ffmpeg/ffmpeg' },
       { source: 'installed', path: '/Users/me/Library/Application Support/NovaMeet/ffmpeg/ffmpeg' },
       { source: 'system', path: '/opt/homebrew/bin/ffmpeg' },
       { source: 'system', path: '/usr/local/bin/ffmpeg' },
@@ -60,7 +60,7 @@ describe('ffmpegCandidates', () => {
 
   it('development macOS: the per-arch assets folder comes first', () => {
     const [first] = ffmpegCandidates('ffmpeg', { ...MAC, arch: 'x64', isPackaged: false });
-    expect(first).toEqual({ source: 'bundled', path: '/Users/me/novameet/assets/ffmpeg/mac-x64/ffmpeg' });
+    expect(first).toEqual({ source: 'bundled', path: '/Users/me/meetscribe/assets/ffmpeg/mac-x64/ffmpeg' });
   });
 
   it('skips the userData location when it is unknown', () => {

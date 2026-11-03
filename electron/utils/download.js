@@ -9,7 +9,7 @@ const crypto = require('crypto');
  * as bytes arrive (`total` is 0 when the server sends no Content-Length).
  * Resolves with the file's SHA-256 (lowercase hex).
  */
-function downloadFile(url, dest, { onProgress, userAgent = 'NovaMeet-Installer/1.0', maxRedirects = 8 } = {}) {
+function downloadFile(url, dest, { onProgress, userAgent = 'MeetScribe-Installer/1.0', maxRedirects = 8 } = {}) {
   return new Promise((resolve, reject) => {
     function get(current, redirectsLeft) {
       const mod = current.startsWith('https:') ? require('https') : require('http');

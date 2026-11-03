@@ -98,7 +98,7 @@ module.exports = {
       configKey: 'assemblyAiPrompt',
       label: 'Transcription guidance / key terms (optional)',
       type: 'text',
-      placeholder: 'e.g. Malayalam, Kubernetes, NovaMeet, API tokens…',
+      placeholder: 'e.g. Malayalam, Kubernetes, MeetScribe, API tokens…',
       hint: 'Custom domain terms, names, or languages that improve recognition accuracy.',
     },
   ],

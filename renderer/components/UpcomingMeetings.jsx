@@ -108,7 +108,7 @@ function EventCard({ event, onStartRecording, isRecording, now }) {
           {event.meetingLink && (
             <button
               type="button"
-              onClick={() => window.novameet.shell.openExternal(event.meetingLink)}
+              onClick={() => window.meetscribe.shell.openExternal(event.meetingLink)}
               className="btn-ghost btn-sm"
             >
               <ExternalLink size={14} strokeWidth={1.75} />
@@ -155,7 +155,7 @@ export default function UpcomingMeetings({ onNavigateToSettings, onStartRecordin
   const now = useNow(60_000);
 
   const fetchEvents = useCallback(async (showRefreshState = false) => {
-    if (!window.novameet?.calendar) {
+    if (!window.meetscribe?.calendar) {
       setConnected(false);
       setLoading(false);
       return;
@@ -164,7 +164,7 @@ export default function UpcomingMeetings({ onNavigateToSettings, onStartRecordin
     if (showRefreshState) setRefreshing(true);
 
     try {
-      const status = await window.novameet.calendar.getStatus();
+      const status = await window.meetscribe.calendar.getStatus();
       setConnected(status.connected);
 
       if (!status.connected) {
@@ -172,7 +172,7 @@ export default function UpcomingMeetings({ onNavigateToSettings, onStartRecordin
         return;
       }
 
-      const result = await window.novameet.calendar.getEvents();
+      const result = await window.meetscribe.calendar.getEvents();
       if (result.success) {
         setEvents(result.events || []);
         setError(null);
@@ -281,7 +281,7 @@ export default function UpcomingMeetings({ onNavigateToSettings, onStartRecordin
                       {errorUrl && (
                         <button
                           type="button"
-                          onClick={() => window.novameet.shell.openExternal(errorUrl)}
+                          onClick={() => window.meetscribe.shell.openExternal(errorUrl)}
                           className="btn-ghost btn-sm"
                         >
                           <ExternalLink size={14} strokeWidth={1.75} />

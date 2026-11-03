@@ -17,7 +17,7 @@ const splash = document.getElementById('splash');
 
 function playSplash() {
   if (!splash || splash.classList.contains('splash-play')) return;
-  window.removeEventListener('novameet:window-shown', playSplash);
+  window.removeEventListener('meetscribe:window-shown', playSplash);
   splash.classList.add('splash-play');
   setTimeout(() => {
     splash.classList.add('splash-out');
@@ -27,7 +27,7 @@ function playSplash() {
 }
 
 if (splash) {
-  window.addEventListener('novameet:window-shown', playSplash);
-  if (window.novameet?.window?.wasShown?.()) playSplash();
+  window.addEventListener('meetscribe:window-shown', playSplash);
+  if (window.meetscribe?.window?.wasShown?.()) playSplash();
   setTimeout(playSplash, SPLASH_FALLBACK_MS);
 }

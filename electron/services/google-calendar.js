@@ -441,7 +441,7 @@ function makeCallbackPage(success, message) {
   const icon = success ? '✓' : '✗';
   return `<!DOCTYPE html>
 <html>
-<head><title>NovaMeet — Google Calendar</title>
+<head><title>MeetScribe — Google Calendar</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
          display: flex; align-items: center; justify-content: center;

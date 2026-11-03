@@ -125,16 +125,16 @@ export default function Settings({ onSave }) {
 
   useEffect(() => {
     async function load() {
-      if (!window.novameet) return;
+      if (!window.meetscribe) return;
       if (!providers) return; // descriptors decide which credential fields exist
-      const cfg = await window.novameet.config.get();
+      const cfg = await window.meetscribe.config.get();
       if (cfg) {
         // Prefer the OS-level startup state over the stored config so the
         // toggle reflects reality even if the user disabled startup from
         // Task Manager or the registry entry was removed.
-        if (window.novameet.config.autoLaunchStatus) {
+        if (window.meetscribe.config.autoLaunchStatus) {
           try {
-            const status = await window.novameet.config.autoLaunchStatus();
+            const status = await window.meetscribe.config.autoLaunchStatus();
             if (!status.isDev) {
               cfg.autoLaunch = status.openAtLogin;
             }
@@ -145,16 +145,16 @@ export default function Settings({ onSave }) {
         setInitialForm(loadedForm);
       }
 
-      if (window.novameet.gemini?.getDefaultSystemPrompt) {
+      if (window.meetscribe.gemini?.getDefaultSystemPrompt) {
         try {
-          const defP = await window.novameet.gemini.getDefaultSystemPrompt();
+          const defP = await window.meetscribe.gemini.getDefaultSystemPrompt();
           if (defP) setDefaultSystemPrompt(defP);
         } catch {}
       }
 
-      if (window.novameet.gemini?.getMdDefaultSystemPrompt) {
+      if (window.meetscribe.gemini?.getMdDefaultSystemPrompt) {
         try {
-          const defMdP = await window.novameet.gemini.getMdDefaultSystemPrompt();
+          const defMdP = await window.meetscribe.gemini.getMdDefaultSystemPrompt();
           if (defMdP) setDefaultMdSystemPrompt(defMdP);
         } catch {}
       }

@@ -807,7 +807,6 @@ div[role="radiogroup"] button[aria-checked="true"] {
   border-color: rgba(59, 130, 246, 0.6);
   color: #F8FAFC;
 }
-
 /* ── Form Controls (Switch, Checkbox, Progress) ───────────────────────────── */
 button[role="switch"][aria-checked="true"] {
   background-color: #2563EB !important;

@@ -1,6 +1,6 @@
 allowBuilds:
   # electron-winstaller (pulled in by electron-builder) only picks a 7-Zip binary for
-  # Squirrel.Windows targets; NovaMeet builds NSIS, so the script never needs to run.
+  # Squirrel.Windows targets; MeetScribe builds NSIS, so the script never needs to run.
   electron-winstaller: false
   esbuild: true
   # koffi's install script only builds from source; the prebuilt binary comes from its

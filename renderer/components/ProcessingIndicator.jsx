@@ -58,7 +58,7 @@ export default function ProcessingIndicator({ processing, onOpen, spacerRef }) {
   // Finish events arrive in the same tick the app clears `processing`, so the outcome is
   // recorded before the effect above runs and the pill holds on it instead of vanishing.
   useEffect(() => {
-    if (!window.novameet?.on) return undefined;
+    if (!window.meetscribe?.on) return undefined;
     const finish = (outcome, hold) => {
       if (!openRef.current) return;
       clearTimeout(hideTimer.current);
@@ -66,9 +66,9 @@ export default function ProcessingIndicator({ processing, onOpen, spacerRef }) {
       setView((v) => v && { ...v, outcome, percent: outcome === 'done' ? 100 : v.percent });
       hideTimer.current = setTimeout(() => setOpen(false), hold);
     };
-    const offComplete = window.novameet.on('processing:complete', () => finish('done', HOLD_DONE_MS));
-    const offError = window.novameet.on('processing:error', () => finish('error', HOLD_ERROR_MS));
-    const offCancelled = window.novameet.on('processing:cancelled', () => {
+    const offComplete = window.meetscribe.on('processing:complete', () => finish('done', HOLD_DONE_MS));
+    const offError = window.meetscribe.on('processing:error', () => finish('error', HOLD_ERROR_MS));
+    const offCancelled = window.meetscribe.on('processing:cancelled', () => {
       clearTimeout(hideTimer.current);
       outcomeRef.current = null;
       setOpen(false);
