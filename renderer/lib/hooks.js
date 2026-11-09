@@ -50,7 +50,7 @@ export function useSessionActions() {
     setDeletingIds((prev) => new Set(prev).add(session.id));
     try {
       await Promise.all([
-        window.novameet.sessions.delete(session.id),
+        window.meetscribe.sessions.delete(session.id),
         new Promise((r) => setTimeout(r, animate ? REMOVE_ANIMATION_MS : 0)),
       ]);
       await refreshSessions();
@@ -69,7 +69,7 @@ export function useSessionActions() {
 
   const handleUploadAudio = async () => {
     try {
-      const result = await window.novameet.recording.uploadFile();
+      const result = await window.meetscribe.recording.uploadFile();
       if (result?.success) {
         await refreshSessions();
       } else if (result?.error && !result.cancelled) {
@@ -83,7 +83,7 @@ export function useSessionActions() {
   // Processing runs in the background; progress arrives via `processing:progress`.
   const handleRetry = async (session) => {
     try {
-      const result = await window.novameet.processing.retry(session.id, 'all');
+      const result = await window.meetscribe.processing.retry(session.id, 'all');
       if (result?.success === false) {
         addToast(result.error || 'Retry failed.', 'error');
         return;

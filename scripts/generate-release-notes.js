@@ -137,7 +137,7 @@ function generateReleaseNotes() {
     throw new Error(`Changelog body for v${version} was empty or fell back to a placeholder.`);
   }
 
-  let template = '## Changelog\n\n{CHANGELOG_BODY}\n\n## Downloads\n\n- Windows: `NovaMeet-Setup-x.y.z.exe`\n- macOS (beta): `NovaMeet-x.y.z-arm64.dmg` (Apple silicon), `NovaMeet-x.y.z-x64.dmg` (Intel)';
+  let template = '## Changelog\n\n{CHANGELOG_BODY}\n\n## Downloads\n\n- Windows: `MeetScribe-Setup-x.y.z.exe`\n- macOS (beta): `MeetScribe-x.y.z-arm64.dmg` (Apple silicon), `MeetScribe-x.y.z-x64.dmg` (Intel)';
   if (fs.existsSync(templatePath)) {
     template = fs.readFileSync(templatePath, 'utf8');
   }

@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm';
 function openExternal(e, url) {
   if (url?.startsWith('http')) {
     e.preventDefault();
-    window.novameet?.shell?.openExternal(url);
+    window.meetscribe?.shell?.openExternal(url);
   }
 }
 

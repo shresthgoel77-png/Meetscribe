@@ -1,4 +1,4 @@
-// Pinned FFmpeg downloads: the single source of truth for every FFmpeg NovaMeet ships or installs.
+// Pinned FFmpeg downloads: the single source of truth for every FFmpeg MeetScribe ships or installs.
 // Used by the in-app installer (`ffmpeg:install`, electron/services/ffmpeg-installer.js) and by
 // scripts/fetch-ffmpeg.js, which stages the binaries for CI and release builds. Pure: no
 // electron import.

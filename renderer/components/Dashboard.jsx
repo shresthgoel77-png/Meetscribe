@@ -102,7 +102,7 @@ function SetupCard({ config, setup, onSetup }) {
           Getting started
         </p>
         <h2 id="setup-heading" className="text-heading-sm font-medium text-ink mt-8">
-          Finish setting up <span className="setup-card-brand">NovaMeet</span>
+          Finish setting up <span className="setup-card-brand">MeetScribe</span>
         </h2>
         <p className="text-body-sm text-graphite mt-8 max-w-[640px]">
           Add your API keys so recordings can be transcribed and turned into notes. Notion is optional.
@@ -193,8 +193,8 @@ export default function Dashboard({ onOpenSession, onNavigateToSettings, onNavig
 
   // Listen for calendar meeting-starting events
   useEffect(() => {
-    if (!window.novameet?.on) return;
-    const unsub = window.novameet.on('calendar:meeting-starting', (event) => {
+    if (!window.meetscribe?.on) return;
+    const unsub = window.meetscribe.on('calendar:meeting-starting', (event) => {
       setMeetingToast(event);
       // Auto-dismiss after 30 seconds
       const t = setTimeout(() => setMeetingToast((prev) => (prev?.id === event.id ? null : prev)), 30_000);
@@ -218,7 +218,7 @@ export default function Dashboard({ onOpenSession, onNavigateToSettings, onNavig
 
   const handleRecordFromCalendar = (event) => {
     if (event.meetingLink) {
-      window.novameet.shell.openExternal(event.meetingLink);
+      window.meetscribe.shell.openExternal(event.meetingLink);
     }
     startRecording();
   };
@@ -337,8 +337,8 @@ export default function Dashboard({ onOpenSession, onNavigateToSettings, onNavig
                 <EmptyState
                   className="dashboard-empty-state"
                   icon={<Mic size={28} strokeWidth={1.5} />}
-                  title="Record your first meeting"
-                  message="Start recording any online or in-person meeting. NovaMeet transcribes it, writes the summary and pulls out the action items."
+                  title="Ready when the room starts talking"
+                  message="Start recording any online or in-person meeting. MeetScribe transcribes it, writes the summary and pulls out the action items."
                   action={
                     <button
                       type="button"

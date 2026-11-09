@@ -54,7 +54,7 @@ function create(theme) {
     focusable: false,
     show: false,
     hasShadow: false,
-    title: 'NovaMeet',
+    title: 'MeetScribe',
     // macOS: a non-activating panel floats over full-screen apps and shows on every Space.
     ...(isMac ? { type: 'panel' } : {}),
     webPreferences: {
@@ -62,7 +62,7 @@ function create(theme) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      additionalArguments: [`--novameet-theme=${theme}`],
+      additionalArguments: [`--meetscribe-theme=${theme}`],
     },
   });
   win.setAlwaysOnTop(true, 'screen-saver');

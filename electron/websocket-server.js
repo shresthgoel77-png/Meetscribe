@@ -34,7 +34,7 @@ function tryListen(port, handlers) {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         });
-        res.end(JSON.stringify({ ok: true, app: 'NovaMeet' }));
+        res.end(JSON.stringify({ ok: true, app: 'MeetScribe' }));
         return;
       }
 
@@ -43,13 +43,22 @@ function tryListen(port, handlers) {
     });
 
     const socketServer = new WebSocketServer({ server });
+    let listening = false;
 
     server.once('listening', () => {
+      listening = true;
       logger.info(`WebSocket server listening on ws://localhost:${port}`);
       resolve({ wss: socketServer, httpServer: server, port });
     });
 
-    server.once('error', (err) => {
+    // ws forwards HTTP server errors to its own EventEmitter first. Handling
+    // only server.error leaves that forwarded event unhandled and prevents the
+    // bind rejection from reaching the port fallback below.
+    socketServer.on('error', (err) => {
+      if (listening) {
+        logger.error('WebSocket server error', { error: err.message });
+        return;
+      }
       try { socketServer.close(); } catch (_) { /* ignore */ }
       try { server.close(); } catch (_) { /* ignore */ }
       reject(err);
@@ -141,7 +150,7 @@ async function startWebSocketServer(port, handlers) {
 
   logger.error('WebSocket server failed: all ports in use', {
     ports: `${port}–${port + PORT_RANGE - 1}`,
-    hint: 'Close other NovaMeet instances or free one of these ports.',
+    hint: 'Close other MeetScribe instances or free one of these ports.',
   });
   throw lastErr || new Error('Could not bind WebSocket server');
 }

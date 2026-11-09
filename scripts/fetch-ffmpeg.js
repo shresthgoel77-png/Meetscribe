@@ -39,7 +39,7 @@ function parseArgs(argv) {
 async function fetchArch(platform, arch, out) {
   if (!ffmpegDownloads(platform, arch)) throw new Error(`No pinned FFmpeg build for ${platform} ${arch}`);
   const outDir = out || path.join(ROOT, 'assets', 'ffmpeg', devBinaryDir(platform, arch));
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `novameet-ffmpeg-${platform}-${arch}-`));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `meetscribe-ffmpeg-${platform}-${arch}-`));
   try {
     let lastIndex = -1;
     const installed = await fetchPinnedFfmpeg({
@@ -47,7 +47,7 @@ async function fetchArch(platform, arch, out) {
       arch,
       outDir,
       tmpDir,
-      userAgent: 'NovaMeet-Build/1.0',
+      userAgent: 'MeetScribe-Build/1.0',
       onProgress: ({ stage, index, count }) => {
         if (stage === 'download' && index !== lastIndex) {
           lastIndex = index;

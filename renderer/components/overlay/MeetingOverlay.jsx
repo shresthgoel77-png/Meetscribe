@@ -11,7 +11,7 @@ import { STAGE_LABELS } from '../../lib/status.js';
 // ended, processing, complete, error. Any other mode collapses the bar, then tells main to hide
 // the window.
 
-const api = window.novameetOverlay;
+const api = window.meetscribeOverlay;
 const VISIBLE_MODES = new Set(['prompt', 'recording', 'ended', 'processing', 'complete', 'error']);
 const OPEN_CONTENT_DELAY_MS = 420;   // the row's content waits for the bar to unfold
 
@@ -272,7 +272,7 @@ export default function MeetingOverlay() {
     <section
       ref={cardRef}
       key={openKey}
-      aria-label="NovaMeet meeting overlay"
+      aria-label="MeetScribe meeting overlay"
       aria-live="polite"
       onAnimationEnd={onAnimationEnd}
       onPointerDown={onPointerDown}

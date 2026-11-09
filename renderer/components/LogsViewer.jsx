@@ -113,7 +113,7 @@ const capped = (list) => (list.length > MAX_LOGS ? list.slice(-MAX_LOGS) : list)
 
 export default function LogsViewer() {
   const { confirm, addToast } = useApp();
-  const bridge = typeof window !== 'undefined' ? window.novameet : null;
+  const bridge = typeof window !== 'undefined' ? window.meetscribe : null;
   const hasLogsApi = !!bridge?.logs;
   const hasPush = !!bridge?.on;
 
@@ -153,11 +153,11 @@ export default function LogsViewer() {
   }, [isLive]);
 
   const loadLogs = useCallback(async () => {
-    if (!window.novameet?.logs) return;
+    if (!window.meetscribe?.logs) return;
     try {
-      const raw = window.novameet.logs.getHistory
-        ? await window.novameet.logs.getHistory()
-        : await window.novameet.logs.get();
+      const raw = window.meetscribe.logs.getHistory
+        ? await window.meetscribe.logs.getHistory()
+        : await window.meetscribe.logs.get();
       if (Array.isArray(raw)) {
         setLogs(capped(raw.map(normalizeEntry)));
       }
@@ -176,8 +176,8 @@ export default function LogsViewer() {
   useEffect(() => {
     loadLogs();
 
-    if (!window.novameet?.on) return undefined;
-    const unsub = window.novameet.on('log:entry', (entry) => {
+    if (!window.meetscribe?.on) return undefined;
+    const unsub = window.meetscribe.on('log:entry', (entry) => {
       if (!entry) return;
       const normalized = normalizeEntry(entry);
       if (!isLiveRef.current) {
@@ -264,7 +264,7 @@ export default function LogsViewer() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `novameet-logs-${new Date().toISOString().slice(0, 10)}.log`;
+    a.download = `meetscribe-logs-${new Date().toISOString().slice(0, 10)}.log`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -278,8 +278,8 @@ export default function LogsViewer() {
     });
     if (!ok) return;
     try {
-      if (window.novameet?.logs?.clear) {
-        await window.novameet.logs.clear();
+      if (window.meetscribe?.logs?.clear) {
+        await window.meetscribe.logs.clear();
       }
       pausedBufferRef.current = [];
       setPausedCount(0);
@@ -290,10 +290,10 @@ export default function LogsViewer() {
   };
 
   const handleOpenLogFolder = async () => {
-    if (!window.novameet?.logs?.openFolder) return;
+    if (!window.meetscribe?.logs?.openFolder) return;
     setOpeningLogDir(true);
     try {
-      await window.novameet.logs.openFolder();
+      await window.meetscribe.logs.openFolder();
     } finally {
       setOpeningLogDir(false);
     }

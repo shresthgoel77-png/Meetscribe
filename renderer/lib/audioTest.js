@@ -3,7 +3,7 @@
 
 export const CAPTURE_STRATEGIES = [
   { id: 'screen', label: 'Screen source', description: 'The standard method. Needs Screen & System Audio Recording permission.' },
-  { id: 'frame', label: 'App window source', description: 'Uses NovaMeet’s own window; may work without Screen Recording permission.' },
+  { id: 'frame', label: 'App window source', description: 'Uses MeetScribe’s own window; may work without Screen Recording permission.' },
   { id: 'picker', label: 'System picker', description: 'macOS asks you to choose what to share each time a recording starts.' },
 ];
 

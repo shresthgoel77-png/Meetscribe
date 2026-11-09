@@ -1,0 +1,46 @@
+name: Build Mac DMG
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.3.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch Mac FFmpeg
+        run: node scripts/fetch-ffmpeg.js --platform darwin --arch arm64
+
+      - name: Build Extension & Frontend (No Icon Regen)
+        run: |
+          pnpm run build:ext
+          pnpm exec vite build
+
+      - name: Package Mac .dmg
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: pnpm exec electron-builder --mac --config electron-builder.yml --publish never
+
+      - name: Attach .dmg to existing GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0
+          files: dist/desktop/*.dmg

@@ -22,7 +22,7 @@ const INSTALL_STAGE_HINT = {
 // Package-manager alternative to the in-app download, per OS.
 const PACKAGE_MANAGER = isMac
   ? { title: 'Or install with Homebrew', command: 'brew install ffmpeg', hint: 'Run in Terminal, then check again.' }
-  : { title: 'Or install with Windows Package Manager', command: 'winget install Gyan.FFmpeg', hint: 'Run in PowerShell or Command Prompt, then restart NovaMeet and check again.' };
+  : { title: 'Or install with Windows Package Manager', command: 'winget install Gyan.FFmpeg', hint: 'Run in PowerShell or Command Prompt, then restart MeetScribe and check again.' };
 
 const SOURCE_LABEL = { bundled: '(bundled)', installed: '(installed)', system: '(system)' };
 
@@ -48,16 +48,16 @@ export default function SystemSection({ active }) {
 
   useEffect(() => {
     async function load() {
-      if (!window.novameet) return;
-      if (window.novameet.app?.getVersion) {
+      if (!window.meetscribe) return;
+      if (window.meetscribe.app?.getVersion) {
         try {
-          const v = await window.novameet.app.getVersion();
+          const v = await window.meetscribe.app.getVersion();
           if (v) setAppVersion(v);
         } catch {}
       }
-      if (window.novameet.updater) {
+      if (window.meetscribe.updater) {
         try {
-          setUpdaterStatus(await window.novameet.updater.getStatus());
+          setUpdaterStatus(await window.meetscribe.updater.getStatus());
         } catch {}
       }
     }
@@ -67,8 +67,8 @@ export default function SystemSection({ active }) {
   // Live updater state (checking/downloading/downloaded/error) pushed from the main process,
   // so progress and status reflect background checks too — not just ones this screen triggered.
   useEffect(() => {
-    if (!window.novameet?.on) return;
-    const unsubscribe = window.novameet.on('updater:status', (status) => {
+    if (!window.meetscribe?.on) return;
+    const unsubscribe = window.meetscribe.on('updater:status', (status) => {
       setUpdaterStatus(status);
       if (status?.status !== 'checking') setCheckingUpdates(false);
       if (status?.status !== 'downloading') setDownloadingUpdate(false);
@@ -77,19 +77,19 @@ export default function SystemSection({ active }) {
   }, []);
 
   useEffect(() => {
-    if (!window.novameet?.ffmpeg?.onProgress) return;
-    const unsub = window.novameet.ffmpeg.onProgress((data) => {
+    if (!window.meetscribe?.ffmpeg?.onProgress) return;
+    const unsub = window.meetscribe.ffmpeg.onProgress((data) => {
       setFfmpegInstallProgress(data);
     });
     return () => unsub && unsub();
   }, []);
 
   const handleCheckFfmpeg = async () => {
-    if (!window.novameet?.ffmpeg) return;
+    if (!window.meetscribe?.ffmpeg) return;
     setCheckingFfmpeg(true);
     setFfmpegStatus(null);
     try {
-      const result = await window.novameet.ffmpeg.check();
+      const result = await window.meetscribe.ffmpeg.check();
       setFfmpegStatus(result);
     } catch (err) {
       setFfmpegStatus({ ffmpeg: { found: false }, ffprobe: { found: false }, error: err.message });
@@ -107,14 +107,14 @@ export default function SystemSection({ active }) {
   }, [active]);
 
   const handleInstallFfmpeg = async () => {
-    if (!window.novameet?.ffmpeg || installingFfmpeg) return;
+    if (!window.meetscribe?.ffmpeg || installingFfmpeg) return;
     setInstallingFfmpeg(true);
     setFfmpegInstallProgress({ stage: 'download', percent: 0, message: 'Preparing…' });
     try {
-      const result = await window.novameet.ffmpeg.install();
+      const result = await window.meetscribe.ffmpeg.install();
       if (result.success) {
         // Re-check status after successful install
-        const checked = await window.novameet.ffmpeg.check();
+        const checked = await window.meetscribe.ffmpeg.check();
         setFfmpegStatus(checked);
       }
     } catch (err) {
@@ -125,12 +125,12 @@ export default function SystemSection({ active }) {
   };
 
   const handleCheckUpdates = async () => {
-    if (!window.novameet?.updater) return;
+    if (!window.meetscribe?.updater) return;
     setCheckingUpdates(true);
     try {
       // Result state is picked up via the live 'updater:status' subscription; this call
       // just kicks the check off (and never triggers a download — that's a separate step).
-      await window.novameet.updater.check();
+      await window.meetscribe.updater.check();
     } finally {
       setCheckingUpdates(false);
     }
@@ -139,12 +139,12 @@ export default function SystemSection({ active }) {
   // Check for updates each time the System tab opens, unless one ran moments ago or an
   // update is already found/in progress (re-checking would hide its Download/Restart button).
   useEffect(() => {
-    if (!active || !window.novameet?.updater) return;
+    if (!active || !window.meetscribe?.updater) return;
     let cancelled = false;
     (async () => {
       let status = null;
       try {
-        status = await window.novameet.updater.getStatus();
+        status = await window.meetscribe.updater.getStatus();
       } catch {}
       if (cancelled) return;
       if (status) setUpdaterStatus(status);
@@ -157,10 +157,10 @@ export default function SystemSection({ active }) {
   }, [active]);
 
   const handleDownloadUpdate = async () => {
-    if (!window.novameet?.updater) return;
+    if (!window.meetscribe?.updater) return;
     setDownloadingUpdate(true);
     try {
-      const result = await window.novameet.updater.download();
+      const result = await window.meetscribe.updater.download();
       if (result && result.success === false) {
         setUpdaterStatus((prev) => ({ ...prev, status: 'error', errorMessage: result.error }));
       }
@@ -272,7 +272,7 @@ export default function SystemSection({ active }) {
                 <div>
                   <p className="text-body-sm font-medium text-ink">Install automatically</p>
                   <p className="hint mt-4">
-                    Downloads ffmpeg &amp; ffprobe (~80 MB) and installs them for NovaMeet.
+                    Downloads ffmpeg &amp; ffprobe (~80 MB) and installs them for MeetScribe.
                   </p>
                   <button type="button" onClick={handleInstallFfmpeg} className="btn-ink btn-sm mt-16">
                     <Download size={14} strokeWidth={1.75} />
@@ -362,7 +362,7 @@ export default function SystemSection({ active }) {
             )}
 
             {updaterStatus?.status === 'downloaded' && (
-              <button type="button" onClick={() => window.novameet.updater?.install()} className="btn-ink btn-sm">
+              <button type="button" onClick={() => window.meetscribe.updater?.install()} className="btn-ink btn-sm">
                 Restart &amp; install
               </button>
             )}
@@ -390,7 +390,7 @@ export default function SystemSection({ active }) {
         )}
 
         {updaterStatus?.status === 'not-available' && (
-          <StatusLine tone="ok">You are running the latest version of NovaMeet.</StatusLine>
+          <StatusLine tone="ok">You are running the latest version of MeetScribe.</StatusLine>
         )}
 
         {updaterStatus?.status === 'error' && updaterStatus?.errorMessage && (

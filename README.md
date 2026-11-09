@@ -73,7 +73,7 @@ flowchart TD
 | Component | Responsibility |
 | --- | --- |
 | Electron main process | `electron/main.js` coordinates windows, tray actions, recording state, IPC handlers, session processing, and integrations. |
-| Preload bridge | `electron/preload.js` exposes the `window.novameet` API for settings, sessions, capture events, exports, and integrations. Context isolation is enabled and renderer Node.js integration is disabled. |
+| Preload bridge | `electron/preload.js` exposes the `window.meetscribe` API for settings, sessions, capture events, exports, and integrations. Context isolation is enabled and renderer Node.js integration is disabled. |
 | React renderer | `renderer/app.jsx` and `renderer/components/` implement the dashboard, meeting library, note and transcript viewers, settings, and capture controls. Vite builds the main and overlay entry points. |
 | Audio services | `electron/audio/` handles FFmpeg resolution, conversion, Windows device enumeration and fallback recording, waveform extraction, and macOS capture strategy definitions. |
 | Provider registry | `electron/providers/` defines separate speech-to-text and language-model registries. Provider descriptors supply credentials, models, capabilities, and connection tests to Settings. |
@@ -355,7 +355,7 @@ For local development:
 2. Enable **Developer mode**, choose **Load unpacked**, and select the repository's `extension/` directory.
 3. Open a supported meeting page and check the extension's desktop connection.
 
-`pnpm run build:ext` also creates `dist/novameet-extension.zip`. The desktop bridge binds to `127.0.0.1`, starting at port `39842` and trying through `39852` when ports are occupied. It is a local companion connection, not a hosted backend.
+`pnpm run build:ext` also creates `dist/meetscribe-extension.zip`. The desktop bridge binds to `127.0.0.1`, starting at port `39842` and trying through `39852` when ports are occupied. It is a local companion connection, not a hosted backend.
 
 ## Development commands and validation
 

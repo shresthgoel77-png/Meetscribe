@@ -40,7 +40,7 @@ function progressReporter(sendProgress) {
 
 /** Installs FFmpeg for this OS. `sendProgress(stage, percent, message)` drives the Settings UI. */
 async function installFfmpeg(sendProgress) {
-  const tmpDir = path.join(os.tmpdir(), `novameet-ffmpeg-${Date.now()}`);
+  const tmpDir = path.join(os.tmpdir(), `meetscribe-ffmpeg-${Date.now()}`);
   try {
     sendProgress('download', 0, 'Starting download…');
     const outDir = targetDir();

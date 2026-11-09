@@ -14,13 +14,13 @@ function openProtocol() {
 }
 
 launchEl.addEventListener('click', () => {
-  statusEl.textContent = 'Launching NovaMeet…';
+  statusEl.textContent = 'Launching MeetScribe…';
 });
 
 openProtocol();
 
 setTimeout(() => {
-  statusEl.textContent = 'Waiting for NovaMeet…';
+  statusEl.textContent = 'Waiting for MeetScribe…';
   hintEl.hidden = false;
 }, 800);
 

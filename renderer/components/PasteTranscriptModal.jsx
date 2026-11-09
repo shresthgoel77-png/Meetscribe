@@ -32,8 +32,8 @@ export default function PasteTranscriptModal({ onClose }) {
 
   // Track live processing stage from the existing IPC event
   useEffect(() => {
-    if (!window.novameet?.on) return;
-    const unsub = window.novameet.on('processing:progress', ({ stage }) => {
+    if (!window.meetscribe?.on) return;
+    const unsub = window.meetscribe.on('processing:progress', ({ stage }) => {
       setProgressLabel(STAGE_LABELS[stage] || 'Processing');
     });
     return unsub;
@@ -56,7 +56,7 @@ export default function PasteTranscriptModal({ onClose }) {
     setErrorMessage('');
 
     try {
-      const result = await window.novameet.sessions.createFromTranscript({
+      const result = await window.meetscribe.sessions.createFromTranscript({
         title: title.trim() || defaultTitle(),
         transcriptText: trimmed,
       });
@@ -66,7 +66,7 @@ export default function PasteTranscriptModal({ onClose }) {
       // Notes are generated in the background; the top-bar chip follows progress.
       trackProcessing(result.sessionId);
       await refreshSessions();
-      const session = await window.novameet.sessions.get(result.sessionId);
+      const session = await window.meetscribe.sessions.get(result.sessionId);
       onClose();
       if (session) openSession(session);
     } catch (err) {
@@ -86,7 +86,7 @@ export default function PasteTranscriptModal({ onClose }) {
       dismissible={!busy}
       size="lg"
       title="Create a meeting from a transcript"
-      description="Paste a raw transcript and NovaMeet will write structured notes from it."
+      description="Paste a raw transcript and MeetScribe will write structured notes from it."
       initialFocusRef={textareaRef}
       footer={
         <div className="flex items-center justify-between gap-16 w-full">

@@ -91,7 +91,7 @@ function FallbackPicker({ providers, form, onChange }) {
   return (
     <SettingsGroup
       title="Fallback"
-      description="If the primary model fails (for example a rate limit or outage), NovaMeet retries automatically with this one."
+      description="If the primary model fails (for example a rate limit or outage), MeetScribe retries automatically with this one."
       icon={<LifeBuoy size={20} strokeWidth={1.75} className="text-ink" />}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
@@ -169,7 +169,7 @@ export default function ProviderSection({ kind, form, onChange }) {
     try {
       const values = {};
       for (const f of provider.credentials) values[f.configKey] = form[f.configKey] || '';
-      setResult(await window.novameet.providers.test({ kind, id: provider.id, values, model }));
+      setResult(await window.meetscribe.providers.test({ kind, id: provider.id, values, model }));
     } catch (err) {
       setResult({ success: false, error: err.message });
     } finally {

@@ -19,11 +19,11 @@ export default function NotesSection({ form, onChange, defaultSystemPrompt, defa
 
   // The default PDF folder is the Windows Downloads folder; shown when no custom folder is set.
   useEffect(() => {
-    window.novameet?.pdf?.defaultDir?.().then((dir) => setDownloadsDir(dir || '')).catch(() => {});
+    window.meetscribe?.pdf?.defaultDir?.().then((dir) => setDownloadsDir(dir || '')).catch(() => {});
   }, []);
 
   const handleChoosePdfDir = async () => {
-    const res = await window.novameet?.dialog?.chooseFolder?.({
+    const res = await window.meetscribe?.dialog?.chooseFolder?.({
       title: 'Choose where to save PDFs',
       defaultPath: form.pdfExportDir || downloadsDir || undefined,
     });

@@ -31,7 +31,7 @@ function ProcessingCard({ stage, percent, includeNotion, onRestart }) {
         {STAGE_LABELS[stage] || 'Processing'}…
       </h2>
       <p className="text-body-sm text-graphite mt-8">
-        You can keep using NovaMeet. This page updates when the notes are ready.
+        You can keep using MeetScribe. This page updates when the notes are ready.
       </p>
       <ol className="flex flex-wrap gap-8 mt-24">
         {stages.map((s, i) => (
@@ -285,8 +285,8 @@ export default function NoteViewer({ session, onBack, onRefresh }) {
     }
   };
 
-  const handleGenerate = () => startPipeline(() => window.novameet.processing.run(session.id));
-  const handleRetry = () => startPipeline(() => window.novameet.processing.retry(session.id, 'all'));
+  const handleGenerate = () => startPipeline(() => window.meetscribe.processing.run(session.id));
+  const handleRetry = () => startPipeline(() => window.meetscribe.processing.retry(session.id, 'all'));
 
   const handleRegenerate = async () => {
     const ok = await confirm({
@@ -299,7 +299,7 @@ export default function NoteViewer({ session, onBack, onRefresh }) {
     if (!ok) return;
     setRegenerating(true);
     try {
-      await startPipeline(() => window.novameet.processing.retry(session.id, 'notes'));
+      await startPipeline(() => window.meetscribe.processing.retry(session.id, 'notes'));
     } finally {
       setRegenerating(false);
     }
@@ -310,14 +310,14 @@ export default function NoteViewer({ session, onBack, onRefresh }) {
     const ok = await confirm({
       title: 'Regenerate transcript?',
       message: savedNotes?._editedAt
-        ? 'NovaMeet will transcribe the recording again, then regenerate the notes from the new transcript. The current transcript and notes will be replaced, and your edits will be lost.'
-        : 'NovaMeet will transcribe the recording again, then regenerate the notes from the new transcript. The current transcript and notes will be replaced.',
+        ? 'MeetScribe will transcribe the recording again, then regenerate the notes from the new transcript. The current transcript and notes will be replaced, and your edits will be lost.'
+        : 'MeetScribe will transcribe the recording again, then regenerate the notes from the new transcript. The current transcript and notes will be replaced.',
       confirmLabel: 'Regenerate',
     });
     if (!ok) return;
     setRegenerating(true);
     try {
-      await startPipeline(() => window.novameet.processing.retry(session.id, 'transcription'));
+      await startPipeline(() => window.meetscribe.processing.retry(session.id, 'transcription'));
     } finally {
       setRegenerating(false);
     }
@@ -342,19 +342,19 @@ export default function NoteViewer({ session, onBack, onRefresh }) {
     if (updating) {
       const ok = await confirm({
         title: 'Update the Notion page?',
-        message: 'NovaMeet creates a fresh page with the current notes and moves the old one to Notion’s trash, where you can restore it for 30 days. Edits made directly in Notion won’t carry over.',
+        message: 'MeetScribe creates a fresh page with the current notes and moves the old one to Notion’s trash, where you can restore it for 30 days. Edits made directly in Notion won’t carry over.',
         confirmLabel: 'Update page',
       });
       if (!ok) return;
     }
     setUploading(true);
     try {
-      const result = await window.novameet.notion.upload(session.id);
+      const result = await window.meetscribe.notion.upload(session.id);
       if (result?.success) {
         setUploadResult(result.url);
         addToast(updating ? 'Notion page updated.' : 'Notes synced to Notion.', 'success', {
           label: 'Open',
-          onClick: () => window.novameet.shell.openExternal(result.url),
+          onClick: () => window.meetscribe.shell.openExternal(result.url),
         });
         onRefresh?.();
       } else {
@@ -378,12 +378,12 @@ export default function NoteViewer({ session, onBack, onRefresh }) {
       const html = buildPdfHtml(session, notes, normalizedTranscript, {
         includeTranscript: !!config?.pdfIncludeTranscript,
       });
-      const result = await window.novameet.pdf.export(session.id, html);
+      const result = await window.meetscribe.pdf.export(session.id, html);
       if (result?.success) {
         const fileName = result.path.split(/[\\/]/).pop();
         addToast(`Saved ${fileName}`, 'success', {
           label: 'Show in folder',
-          onClick: () => window.novameet.pdf.reveal(result.path),
+          onClick: () => window.meetscribe.pdf.reveal(result.path),
         });
       } else {
         addToast(result?.error || 'PDF export failed.', 'error');
@@ -422,7 +422,7 @@ export default function NoteViewer({ session, onBack, onRefresh }) {
     setSaving(true);
     try {
       const next = { ...parseNotesMarkdown(draft, savedNotes), _editedAt: new Date().toISOString() };
-      const result = await window.novameet.sessions.updateNotes(session.id, next);
+      const result = await window.meetscribe.sessions.updateNotes(session.id, next);
       if (!result?.success) {
         addToast(result?.error || 'Couldn’t save the notes.', 'error');
         return;

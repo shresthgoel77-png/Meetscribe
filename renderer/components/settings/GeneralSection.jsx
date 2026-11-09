@@ -110,7 +110,7 @@ export default function GeneralSection({ form, onChange }) {
         <RowList>
           <SettingRow
             label="Launch on startup"
-            description="Start NovaMeet automatically when you log in."
+            description="Start MeetScribe automatically when you log in."
             htmlFor="pref-auto-launch"
           >
             <Switch

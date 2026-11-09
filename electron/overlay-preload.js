@@ -1,11 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Preload for the meeting overlay window. It exposes only what the overlay needs, not the full
-// window.novameet surface. Main passes the effective theme ('light' | 'dark') in argv so
+// window.meetscribe surface. Main passes the effective theme ('light' | 'dark') in argv so
 // overlay.html can apply it before first paint, and pushes overlay:theme when it changes.
 let startupTheme = 'light';
 try {
-  const arg = (process.argv || []).find((a) => a.startsWith('--novameet-theme='));
+  const arg = (process.argv || []).find((a) => a.startsWith('--meetscribe-theme='));
   if (arg && arg.split('=')[1] === 'dark') startupTheme = 'dark';
 } catch { /* theme is cosmetic */ }
 
@@ -15,7 +15,7 @@ function subscribe(channel, callback) {
   return () => ipcRenderer.removeListener(channel, listener);
 }
 
-contextBridge.exposeInMainWorld('novameetOverlay', {
+contextBridge.exposeInMainWorld('meetscribeOverlay', {
   startupTheme,
   getState:      () => ipcRenderer.invoke('overlay:get-state'),
   start:         () => ipcRenderer.invoke('overlay:start'),

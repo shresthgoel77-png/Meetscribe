@@ -1,5 +1,5 @@
 /**
- * NovaMeet Overlay Script
+ * MeetScribe Overlay Script
  *
  * Runs inside the overlay iframe injected into Meet/Zoom pages.
  * Manages 5 UI states: IDLE → RECORDING → PROCESSING → COMPLETE → APP_OFFLINE
@@ -115,8 +115,8 @@ function buildDockUI() {
   const dock = el('button', {
     class: dockClass,
     type: 'button',
-    title: 'Show NovaMeet',
-    'aria-label': 'Show NovaMeet overlay',
+    title: 'Show MeetScribe',
+    'aria-label': 'Show MeetScribe overlay',
   });
 
   const mark = brandMark('', 'dock');
@@ -317,15 +317,15 @@ function buildOfflineUI() {
   const pill = el('div', { class: 'pill compact' });
 
   const mark = brandMark('muted offline');
-  mark.setAttribute('title', 'NovaMeet — app offline');
+  mark.setAttribute('title', 'MeetScribe — app offline');
 
   const label = pillLabel('Offline', 'offline-label');
 
   const btn = el('button', {
     class: 'icon-btn',
     type: 'button',
-    title: 'Open NovaMeet app',
-    'aria-label': 'Open NovaMeet app',
+    title: 'Open MeetScribe app',
+    'aria-label': 'Open MeetScribe app',
   });
   btn.appendChild(iconAsset('open_in_app.svg'));
   btn.addEventListener('click', () => window.parent.postMessage({ type: 'OVERLAY_OPEN_APP' }, '*'));

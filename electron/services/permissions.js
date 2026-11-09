@@ -1,4 +1,4 @@
-// macOS privacy (TCC) permissions NovaMeet needs: the microphone, and Screen & System Audio
+// macOS privacy (TCC) permissions MeetScribe needs: the microphone, and Screen & System Audio
 // Recording for meeting audio. Backs the `permissions:*` IPC channels and the Settings ›
 // System › Permissions card. On other platforms everything reports 'not-applicable'.
 //

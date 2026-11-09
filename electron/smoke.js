@@ -1,4 +1,4 @@
-// `NovaMeet --smoke` (or `electron . --smoke`): a headless self-test of a packaged app, run by CI
+// `MeetScribe --smoke` (or `electron . --smoke`): a headless self-test of a packaged app, run by CI
 // on the macOS and Windows builds since there is no Mac to click through. Uses a throwaway
 // profile, never opens a window, prints one line `NOVAMEET_SMOKE {json}` and exits 0 if every
 // check passed, 1 otherwise.
@@ -14,7 +14,7 @@ const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'novameet-smoke-'));
+const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'meetscribe-smoke-'));
 app.setPath('userData', profile);
 app.dock?.hide();
 

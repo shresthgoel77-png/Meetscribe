@@ -195,7 +195,7 @@ export default function App() {
   // The AnalyserNodes tap each channel independently and a rAF loop pushes RMS
   // levels into `audioLevels` state for the RecordingBar's live meters.
   useEffect(() => {
-    if (!window.novameet?.capture) return;
+    if (!window.meetscribe?.capture) return;
 
     let mediaRecorder = null;
     let streams = [];
@@ -265,7 +265,7 @@ export default function App() {
       return null;
     }
 
-    window.novameet.capture.onStart(async () => {
+    window.meetscribe.capture.onStart(async () => {
       try {
         const sysStream = await openSystemStream();
 
@@ -309,7 +309,7 @@ export default function App() {
           if (e.data && e.data.size > 0) {
             e.data.arrayBuffer().then((buffer) => {
               if (buffer.byteLength > 0) {
-                window.novameet.capture.sendChunk(buffer);
+                window.meetscribe.capture.sendChunk(buffer);
               }
             }).catch((err) => {
               console.error('Failed to send audio chunk:', err);
@@ -319,22 +319,22 @@ export default function App() {
         // Emit chunks every 1 second (1000ms) for real-time disk streaming
         mediaRecorder.start(1000);
 
-        window.novameet.capture.sendStarted({ systemAudio: !!sysStream, mic: !!micStream });
+        window.meetscribe.capture.sendStarted({ systemAudio: !!sysStream, mic: !!micStream });
         if (!sysStream) {
           addToast('Recording your microphone only: system audio is unavailable. Check Screen & System Audio Recording permission.', 'warning');
         }
       } catch (err) {
         console.error('Renderer audio capture failed:', err);
         stopMeterLoop();
-        window.novameet.capture.sendFailed(err.message);
+        window.meetscribe.capture.sendFailed(err.message);
       }
     });
 
-    window.novameet.capture.onStop(async () => {
+    window.meetscribe.capture.onStop(async () => {
       stopMeterLoop();
       try {
         if (!mediaRecorder || mediaRecorder.state === 'inactive') {
-          window.novameet.capture.sendAudioData(new ArrayBuffer(0));
+          window.meetscribe.capture.sendAudioData(new ArrayBuffer(0));
           return;
         }
 
@@ -351,18 +351,18 @@ export default function App() {
         await new Promise((r) => setTimeout(r, 150));
 
         // Send zero-length sentinel to signal "recording complete"
-        window.novameet.capture.sendAudioData(new ArrayBuffer(0));
+        window.meetscribe.capture.sendAudioData(new ArrayBuffer(0));
       } catch (err) {
         console.error('Renderer capture stop failed:', err);
-        window.novameet.capture.sendAudioData(new ArrayBuffer(0));
+        window.meetscribe.capture.sendAudioData(new ArrayBuffer(0));
       }
     });
   }, [addToast]); // addToast is stable, so the listeners are registered once
 
   const refreshSessions = useCallback(async () => {
-    if (!window.novameet) return;
+    if (!window.meetscribe) return;
     try {
-      const list = await window.novameet.sessions.list();
+      const list = await window.meetscribe.sessions.list();
       setSessions(list);
       setSessionsError(null);
     } catch (err) {
@@ -379,12 +379,12 @@ export default function App() {
     const failsafe = setTimeout(() => setSessionsLoading(false), 5000);
 
     async function init() {
-      if (!window.novameet) return;
-      window.novameet.providers?.list?.().then(setProviders).catch((err) => {
+      if (!window.meetscribe) return;
+      window.meetscribe.providers?.list?.().then(setProviders).catch((err) => {
         console.error('Provider list load failed:', err);
       });
       try {
-        const cfg = await window.novameet.config.get();
+        const cfg = await window.meetscribe.config.get();
         setConfigState(cfg);
         const initialTheme = normalizeTheme(cfg?.theme);
         setThemeState(initialTheme);
@@ -432,9 +432,9 @@ export default function App() {
 
   // Register event listeners
   useEffect(() => {
-    if (!window.novameet) return;
+    if (!window.meetscribe) return;
 
-    const unsubRecordingStarted = window.novameet.on('recording:started', ({ sessionId }) => {
+    const unsubRecordingStarted = window.meetscribe.on('recording:started', ({ sessionId }) => {
       setIsRecording(true);
       setRecordingSessionId(sessionId);
       setRecordingStartedAt((prev) => prev || Date.now());
@@ -442,46 +442,46 @@ export default function App() {
 
     // Stops can come from the button, the tray, the meeting overlay or the extension — the pipeline
     // always follows, so start tracking its progress here.
-    const unsubRecordingStopped = window.novameet.on('recording:stopped', ({ sessionId } = {}) => {
+    const unsubRecordingStopped = window.meetscribe.on('recording:stopped', ({ sessionId } = {}) => {
       setIsRecording(false);
       setRecordingStartedAt(null);
       if (sessionId) trackProcessing(sessionId);
     });
 
-    const unsubProgress = window.novameet.on('processing:progress', ({ stage, percent }) => {
+    const unsubProgress = window.meetscribe.on('processing:progress', ({ stage, percent }) => {
       if (stage === 'complete') return;
       setProcessing({ sessionId: processingSessionRef.current, stage, percent });
     });
 
-    const unsubComplete = window.novameet.on('processing:complete', async ({ sessionId }) => {
+    const unsubComplete = window.meetscribe.on('processing:complete', async ({ sessionId }) => {
       setProcessing(null);
       processingSessionRef.current = null;
       await refreshSessions();
       if (sessionId) {
-        const session = await window.novameet.sessions.get(sessionId);
+        const session = await window.meetscribe.sessions.get(sessionId);
         if (session) showFinishedSession(session);
       }
     });
 
-    const unsubError = window.novameet.on('processing:error', async ({ sessionId, error }) => {
+    const unsubError = window.meetscribe.on('processing:error', async ({ sessionId, error }) => {
       setProcessing(null);
       processingSessionRef.current = null;
       await refreshSessions();
       if (sessionId) {
-        const session = await window.novameet.sessions.get(sessionId);
+        const session = await window.meetscribe.sessions.get(sessionId);
         if (session) showFinishedSession({ ...session, _processingError: error });
       }
     });
 
     // Pipeline was cancelled because the session was deleted mid-flight.
-    const unsubCancelled = window.novameet.on('processing:cancelled', () => {
+    const unsubCancelled = window.meetscribe.on('processing:cancelled', () => {
       setProcessing(null);
       processingSessionRef.current = null;
       refreshSessions();
     });
 
-    const unsubDurations = window.novameet.on('sessions:durations-updated', async () => {
-      const updated = await window.novameet.sessions.list();
+    const unsubDurations = window.meetscribe.on('sessions:durations-updated', async () => {
+      const updated = await window.meetscribe.sessions.list();
       setSessions(updated);
       setSelectedSession((prev) => {
         if (!prev?.id) return prev;
@@ -490,19 +490,19 @@ export default function App() {
       });
     });
 
-    const unsubUpdater = window.novameet.on('updater:status', (status) => {
+    const unsubUpdater = window.meetscribe.on('updater:status', (status) => {
       setUpdaterState(status);
       if (status?.status === 'downloaded') setShowUpdateBanner(true);
     });
 
-    const unsubFallback = window.novameet.on('llm:fallback-used', ({ primaryModel, fallbackModel }) => {
+    const unsubFallback = window.meetscribe.on('llm:fallback-used', ({ primaryModel, fallbackModel }) => {
       addToast(
         `Primary model (${primaryModel}) failed — switched to ${fallbackModel} automatically.`,
         'warning'
       );
     });
 
-    window.novameet.updater?.getStatus().then((status) => {
+    window.meetscribe.updater?.getStatus().then((status) => {
       if (status) {
         setUpdaterState(status);
         if (status.status === 'downloaded') setShowUpdateBanner(true);
@@ -534,26 +534,26 @@ export default function App() {
 
   const openSessionById = useCallback(async (sessionId) => {
     if (!sessionId) return;
-    const session = await window.novameet.sessions.get(sessionId);
+    const session = await window.meetscribe.sessions.get(sessionId);
     if (session) openSession(session);
   }, [openSession]);
 
   // "Open notes" on the desktop meeting overlay.
   useEffect(() => {
-    if (!window.novameet) return undefined;
-    return window.novameet.on('app:open-session', ({ sessionId } = {}) => openSessionById(sessionId));
+    if (!window.meetscribe) return undefined;
+    return window.meetscribe.on('app:open-session', ({ sessionId } = {}) => openSessionById(sessionId));
   }, [openSessionById]);
 
   // macOS app menu (e.g. Settings… ⌘,).
   useEffect(() => {
-    if (!window.novameet) return undefined;
-    return window.novameet.on('app:navigate', (nextView) => {
+    if (!window.meetscribe) return undefined;
+    return window.meetscribe.on('app:navigate', (nextView) => {
       if (['dashboard', 'meetings', 'settings', 'logs'].includes(nextView)) requestNavigate(nextView);
     });
   }, [requestNavigate]);
 
   const updateConfig = async (key, value) => {
-    await window.novameet.config.set(key, value);
+    await window.meetscribe.config.set(key, value);
     setConfigState((prev) => ({ ...prev, [key]: value }));
     if (key === 'theme') {
       const t = normalizeTheme(value);
@@ -563,14 +563,14 @@ export default function App() {
   };
 
   const updateMultipleConfig = async (updates) => {
-    if (window.novameet?.config?.setMultiple) {
-      await window.novameet.config.setMultiple(updates);
+    if (window.meetscribe?.config?.setMultiple) {
+      await window.meetscribe.config.setMultiple(updates);
     } else {
       for (const [k, v] of Object.entries(updates)) {
-        await window.novameet.config.set(k, v);
+        await window.meetscribe.config.set(k, v);
       }
     }
-    const fresh = await window.novameet.config.get();
+    const fresh = await window.meetscribe.config.get();
     setConfigState(fresh || ((prev) => ({ ...prev, ...updates })));
     if ('theme' in updates) {
       const t = normalizeTheme(updates.theme);
@@ -587,7 +587,7 @@ export default function App() {
   };
 
   const startRecording = async () => {
-    const result = await window.novameet.recording.start();
+    const result = await window.meetscribe.recording.start();
     if (result?.success) {
       setIsRecording(true);
       setRecordingSessionId(result.sessionId);
@@ -599,7 +599,7 @@ export default function App() {
   };
 
   const stopRecording = async () => {
-    const result = await window.novameet.recording.stop();
+    const result = await window.meetscribe.recording.stop();
     if (result?.success) {
       setIsRecording(false);
       setRecordingStartedAt(null);
@@ -657,7 +657,7 @@ export default function App() {
                 if (!(await requestNavigate(sessionOrigin))) cancelScrollRestore(sessionOrigin);
               }}
               onRefresh={async () => {
-                const updated = await window.novameet.sessions.get(selectedSession.id);
+                const updated = await window.meetscribe.sessions.get(selectedSession.id);
                 if (updated) setSelectedSession(updated);
                 refreshSessions();
               }}
@@ -675,7 +675,7 @@ export default function App() {
       {updaterState?.status === 'downloaded' && showUpdateBanner && !isRecording && (
         <UpdateBanner
           version={updaterState.updateInfo?.version}
-          onInstall={() => window.novameet.updater?.install()}
+          onInstall={() => window.meetscribe.updater?.install()}
           onClose={() => setShowUpdateBanner(false)}
         />
       )}
@@ -715,7 +715,7 @@ function TopBar() {
         <span className="tile w-32 h-32 inline-flex items-center justify-center" aria-hidden="true">
           <Mic size={16} strokeWidth={2} />
         </span>
-        <span className="hidden lg:inline text-body-sm font-medium text-ink">NovaMeet</span>
+        <span className="hidden lg:inline text-body-sm font-medium text-ink">MeetScribe</span>
       </div>
 
       {/* Navigation */}
@@ -776,13 +776,13 @@ function WindowControls() {
   const base = 'h-64 w-48 flex items-center justify-center text-graphite transition-colors duration-150';
   return (
     <div className="titlebar-no-drag flex items-stretch h-full flex-shrink-0">
-      <button type="button" onClick={() => window.novameet?.window?.minimize()} className={`${base} hover:text-ink hover:bg-ink/[0.06]`} aria-label="Minimize window">
+      <button type="button" onClick={() => window.meetscribe?.window?.minimize()} className={`${base} hover:text-ink hover:bg-ink/[0.06]`} aria-label="Minimize window">
         <Minus size={14} strokeWidth={1.75} />
       </button>
-      <button type="button" onClick={() => window.novameet?.window?.maximize()} className={`${base} hover:text-ink hover:bg-ink/[0.06]`} aria-label="Maximize or restore window">
+      <button type="button" onClick={() => window.meetscribe?.window?.maximize()} className={`${base} hover:text-ink hover:bg-ink/[0.06]`} aria-label="Maximize or restore window">
         <Square size={12} strokeWidth={1.75} />
       </button>
-      <button type="button" onClick={() => window.novameet?.window?.close()} className={`${base} hover:text-paper hover:bg-signal`} aria-label="Close window">
+      <button type="button" onClick={() => window.meetscribe?.window?.close()} className={`${base} hover:text-paper hover:bg-signal`} aria-label="Close window">
         <X size={14} strokeWidth={1.75} />
       </button>
     </div>
@@ -797,7 +797,7 @@ function UpdateBanner({ version, onInstall, onClose }) {
       <div className="flex items-start justify-between gap-16">
         <div className="min-w-0">
           <p className="eyebrow">Update ready</p>
-          <h3 className="text-subheading font-medium text-ink mt-8">NovaMeet {version ? `v${version}` : ''} is ready</h3>
+          <h3 className="text-subheading font-medium text-ink mt-8">MeetScribe {version ? `v${version}` : ''} is ready</h3>
           <p className="text-caption text-graphite mt-4">Restart to finish installing the update.</p>
         </div>
         <IconButton label="Dismiss update notice" onClick={onClose}>

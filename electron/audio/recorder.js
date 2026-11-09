@@ -185,7 +185,7 @@ async function probeAudioDevice(device, durationSec = 3) {
     return { device, peak: 0, isSilent: true, error: 'FFmpeg not found' };
   }
 
-  const tmpPath = path.join(app.getPath('temp'), `novameet-probe-${Date.now()}.wav`);
+  const tmpPath = path.join(app.getPath('temp'), `meetscribe-probe-${Date.now()}.wav`);
   const { inputs, outputArgs } = buildSingleDeviceArgs(device);
   const args = ['-hide_banner', ...inputs, '-t', String(durationSec), ...outputArgs, '-y', tmpPath];
 
