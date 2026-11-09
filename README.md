@@ -1,4 +1,4 @@
-# NovaMeet
+# Meetscribe
 
 **AI-powered meeting recording, transcription, and structured notes for the desktop.**
 
