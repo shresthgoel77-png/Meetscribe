@@ -35,7 +35,8 @@ const { initializeAutoUpdater, checkForUpdates, downloadUpdate, quitAndInstall, 
 const { startAuthFlow, disconnectCalendar, isCalendarConnected, fetchUpcomingEvents, startEventPoller, stopEventPoller } = require('./services/google-calendar');
 const db = require('./db/sessions');
 const meetingDetector = require('./detection/meeting-detector');
-const { showOverlay, hideOverlay, overlayClosed, destroyOverlay, resizeOverlay, moveOverlay, setOverlayTheme } = require('./overlay/overlay-window');
+const { showOverlay, hideOverlay, overlayClosed, destroyOverlay, resizeOverlay, moveOverlay, setOverlayTheme, getOverlayWindow } = require('./overlay/overlay-window');
+const { registerRecallIpc } = require('./services/recall-ipc');
 const { getPermissionStatus, requestPermission, openPermissionSettings } = require('./services/permissions');
 const { normalizeMacCaptureStrategy } = require('./audio/mac-capture');
 
@@ -174,6 +175,7 @@ protocol.registerSchemesAsPrivileged(['meetscribe-audio', 'novameet-audio'].map(
 let mainWindow = null;
 let tray = null;
 let isRecording = false;
+let recallIpc = null; // No Recall window is constructed in this stage.
 
 function sendToRenderer(channel, ...args) {
   try {
@@ -533,6 +535,16 @@ let rendererBytesWritten = 0;   // Total bytes flushed to disk
 // pipeline checks this set before each expensive stage and aborts early.
 const cancelledSessions = new Set();
 
+// Read-only Recall eligibility, including retry/upload gaps before status changes. Reference
+// counts preserve exclusions when existing processing paths happen to overlap for one session.
+const recallProcessingSessions = new Map();
+function beginRecallProcessing(id) { recallProcessingSessions.set(id, (recallProcessingSessions.get(id) || 0) + 1); }
+function endRecallProcessing(id) {
+  const remaining = (recallProcessingSessions.get(id) || 1) - 1;
+  if (remaining) recallProcessingSessions.set(id, remaining);
+  else recallProcessingSessions.delete(id);
+}
+
 // ── Renderer capture IPC helpers ─────────────────────────────────────────────
 
 function requestRendererCaptureStart() {
@@ -779,6 +791,7 @@ function hasReusableTranscript(session) {
 }
 
 async function runProcessingPipeline(sessionId, audioPath, options = {}) {
+  beginRecallProcessing(sessionId);
   const sendProgress = (stage, percent) => {
     sendToRenderer('processing:progress', { stage, percent });
     broadcastStatus({ type: 'PROCESSING_PROGRESS', stage, percent, sessionId });
@@ -885,6 +898,8 @@ async function runProcessingPipeline(sessionId, audioPath, options = {}) {
     db.updateSession(sessionId, { status: 'error', last_error: err.message });
     sendToRenderer('processing:error', { sessionId, error: err.message });
     broadcastStatus({ type: 'PROCESSING_ERROR', error: err.message, sessionId });
+  } finally {
+    endRecallProcessing(sessionId);
   }
 }
 
@@ -1324,6 +1339,7 @@ function registerIpcHandlers() {
       return { success: false, error: 'Notion not configured — add your token and parent page ID in Settings.' };
     }
 
+    beginRecallProcessing(sessionId);
     try {
       const notes =
         typeof session.notes === 'string'
@@ -1339,6 +1355,8 @@ function registerIpcHandlers() {
     } catch (err) {
       logger.error('Notion upload failed', { error: err.message });
       return { success: false, error: err.message };
+    } finally {
+      endRecallProcessing(sessionId);
     }
   });
 
@@ -1407,6 +1425,7 @@ function registerIpcHandlers() {
     }
     if (stage === 'notion') {
       const config = getConfig();
+      beginRecallProcessing(sessionId);
       try {
         const notes =
           typeof session.notes === 'string'
@@ -1421,6 +1440,8 @@ function registerIpcHandlers() {
         return { success: true, url };
       } catch (err) {
         return { success: false, error: err.message };
+      } finally {
+        endRecallProcessing(sessionId);
       }
     }
     return { success: false, error: 'Unknown stage' };
@@ -1467,6 +1488,7 @@ function registerIpcHandlers() {
     // Run note generation + optional Notion upload asynchronously so the IPC call returns immediately
     // and the renderer can listen on processing:progress / processing:complete as usual.
     (async () => {
+      beginRecallProcessing(sessionId);
       const sendProgress = (stage, percent) => {
         sendToRenderer('processing:progress', { stage, percent });
         broadcastToExtension({ type: 'PROCESSING_PROGRESS', stage, percent });
@@ -1506,6 +1528,8 @@ function registerIpcHandlers() {
         db.updateSession(sessionId, { status: 'error', last_error: err.message });
         sendToRenderer('processing:error', { sessionId, error: err.message });
         broadcastToExtension({ type: 'PROCESSING_ERROR', error: err.message });
+      } finally {
+        endRecallProcessing(sessionId);
       }
     })();
 
@@ -1749,6 +1773,16 @@ app.whenReady().then(async () => {
   await db.initialize();
   db.markStaleRecordingSessionsAsError();
   registerIpcHandlers();
+  recallIpc = registerRecallIpc({ ipcMain, getMainWindow: () => mainWindow, getOverlayWindow, getConfig,
+    getRecordingState: () => ({ activeRecordingId: isRecording ? currentSessionId : null,
+      processingSessionIds: [...recallProcessingSessions.keys()] }),
+    openSource: (evidence, request) => {
+      focusMainWindow();
+      return sendToRenderer('app:open-session', { sessionId: evidence.sessionId,
+        recallSource: { requestId: request.requestId, answerRequestId: request.answerRequestId,
+          evidenceId: evidence.evidenceId, locator: evidence.locator } });
+    },
+  });
 
   // Serve session audio for renderer playback:
   // meetscribe-audio://session/<sessionId>  (preferred)
@@ -1900,6 +1934,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  recallIpc?.dispose();
   stopWebSocketServer();
   stopEventPoller();
   meetingDetector.stop();

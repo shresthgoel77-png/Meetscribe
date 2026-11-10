@@ -95,6 +95,30 @@ function inspectWav(bytes, errorCode) {
   return { sampleRate: format.sampleRate, durationSeconds: dataBytes / format.byteRate };
 }
 
+// Pure preflight shared by the main IPC boundary and this transport. Never starts a request.
+function validateClip(audio) {
+  if (!(audio instanceof Uint8Array) || audio.byteLength === 0) fail('INVALID_AUDIO');
+  if (audio.byteLength > LIMITS.uploadBytes) fail('AUDIO_TOO_LARGE');
+  const wav = inspectWav(Buffer.from(audio.buffer, audio.byteOffset, audio.byteLength), 'INVALID_AUDIO');
+  if (wav.durationSeconds > LIMITS.clipSeconds) fail('AUDIO_TOO_LONG');
+  return wav;
+}
+
+function validateTtsOptions({ text, model = 'timbre-v3.0', voice, language = 'auto', speed = 1 } = {}) {
+  if (typeof text !== 'string' || !text.trim() || text.length > LIMITS.textCharacters) fail('INVALID_TEXT');
+  const chosenVoice = voice ?? (model === 'timbre-v2.5' ? 'Nalini' : 'Shivani');
+  if (!Object.hasOwn(VOICES, model) || !VOICES[model].has(chosenVoice) || !LANGUAGES.has(language) ||
+      typeof speed !== 'number' || !Number.isFinite(speed) || speed < 0.85 || speed > 1.15) fail('INVALID_REQUEST');
+  return chosenVoice;
+}
+
+function validateOutputAudio(audio) {
+  if (!(audio instanceof Uint8Array) || audio.byteLength > LIMITS.audioBytes) fail('INVALID_RESPONSE');
+  const wav = inspectWav(Buffer.from(audio.buffer, audio.byteOffset, audio.byteLength), 'INVALID_RESPONSE');
+  if (wav.sampleRate !== 24000) fail('INVALID_RESPONSE');
+  return wav;
+}
+
 function cancelBody(response) {
   // Do not await cancellation: a broken server/stream must not extend the request deadline.
   try { Promise.resolve(response?.body?.cancel()).catch(() => {}); } catch { /* already locked */ }
@@ -196,8 +220,7 @@ async function transcribe({ apiKey, audio, signal } = {}, deps = {}) {
   if (!(audio instanceof Uint8Array) || audio.byteLength === 0) fail('INVALID_AUDIO');
   if (audio.byteLength > LIMITS.uploadBytes) fail('AUDIO_TOO_LARGE');
   const bytes = Buffer.from(audio); // snapshot caller-owned bytes before awaiting
-  const wav = inspectWav(bytes, 'INVALID_AUDIO');
-  if (wav.durationSeconds > LIMITS.clipSeconds) fail('AUDIO_TOO_LONG');
+  validateClip(bytes);
   return request({ ...deps, signal }, async (fetchImpl, requestSignal) => {
     const body = new FormData();
     body.append('audio_file', new Blob([bytes], { type: 'audio/wav' }), 'recall.wav');
@@ -229,10 +252,7 @@ async function transcribe({ apiKey, audio, signal } = {}, deps = {}) {
 /** Resolves { audio: Buffer, mimeType, sampleRate, durationSeconds }; audio is a full PCM WAV. */
 async function synthesize({ apiKey, text, model = 'timbre-v3.0', voice, language = 'auto', speed = 1, signal } = {}, deps = {}) {
   const key = keyHeader(apiKey);
-  if (typeof text !== 'string' || !text.trim() || text.length > LIMITS.textCharacters) fail('INVALID_TEXT');
-  const chosenVoice = voice ?? (model === 'timbre-v2.5' ? 'Nalini' : 'Shivani');
-  if (!Object.hasOwn(VOICES, model) || !VOICES[model].has(chosenVoice) || !LANGUAGES.has(language) ||
-      typeof speed !== 'number' || !Number.isFinite(speed) || speed < 0.85 || speed > 1.15) fail('INVALID_REQUEST');
+  const chosenVoice = validateTtsOptions({ text, model, voice, language, speed });
   return request({ ...deps, signal }, async (fetchImpl, requestSignal) => {
     const response = await fetchImpl(TTS_URL, {
       method: 'POST', headers: { 'X-API-Key-ID': key, 'Content-Type': 'application/json', Accept: 'audio/wav' },
@@ -245,10 +265,9 @@ async function synthesize({ apiKey, text, model = 'timbre-v3.0', voice, language
     await validateStatus(response, requestSignal);
     if (contentType(response) !== 'audio/wav') { cancelBody(response); fail('INVALID_RESPONSE'); }
     const audio = await readBounded(response, LIMITS.audioBytes, requestSignal);
-    const wav = inspectWav(audio, 'INVALID_RESPONSE');
-    if (wav.sampleRate !== 24000) fail('INVALID_RESPONSE');
+    const wav = validateOutputAudio(audio);
     return { audio, mimeType: 'audio/wav', ...wav };
   });
 }
 
-module.exports = { transcribe, synthesize, GnaniSpeechError, LIMITS };
+module.exports = { transcribe, synthesize, validateClip, validateTtsOptions, validateOutputAudio, GnaniSpeechError, LIMITS };

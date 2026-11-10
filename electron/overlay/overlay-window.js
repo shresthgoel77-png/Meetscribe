@@ -148,4 +148,5 @@ function isOverlayVisible() {
 
 module.exports = {
   showOverlay, updateOverlay, hideOverlay, overlayClosed, destroyOverlay, resizeOverlay, moveOverlay, setOverlayTheme, isOverlayVisible,
+  getOverlayWindow: () => isAlive() ? win : null,
 };

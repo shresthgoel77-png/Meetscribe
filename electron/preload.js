@@ -86,6 +86,17 @@ contextBridge.exposeInMainWorld('meetscribe', {
     autoLaunchStatus: () => ipcRenderer.invoke('config:autoLaunchStatus'),
   },
 
+  // Trusted main Settings only. The future assistant uses its own restricted preload.
+  recall: {
+    open: (request) => ipcRenderer.invoke('recall:open', request),
+    close: (request) => ipcRenderer.invoke('recall:close', request),
+    getState: (request) => ipcRenderer.invoke('recall:get-state', request),
+    testStt: (request) => ipcRenderer.invoke('recall:test-stt', request),
+    testTts: (request) => ipcRenderer.invoke('recall:test-tts', request),
+    testLlm: (request) => ipcRenderer.invoke('recall:test-llm', request),
+    cancelTest: (request) => ipcRenderer.invoke('recall:cancel', request),
+  },
+
   // Recording
   recording: {
     start: (sessionId) => ipcRenderer.invoke('recording:start', sessionId),
