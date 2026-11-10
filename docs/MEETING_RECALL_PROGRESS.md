@@ -1,6 +1,6 @@
 # Meeting Recall progress
 
-Current: Stage 2 speech transport and deterministic checks implemented; real Gnani inference and audio UI verification remain pending.
+Current: Stage 3 independent Recall configuration and cross-stage contracts implemented/documented. Real Gnani inference and audio UI verification remain pending.
 
 ## Stage 1: project audit — complete, 2026-11-10 (Asia/Calcutta)
 
@@ -141,3 +141,77 @@ No Gnani credential was found in the current process environment or named Gnani/
 Changed files for this stage: this progress document, `electron/providers/speech/gnani.js`, `tests/recall-speech.test.js`, `scripts/recall-speech-smoke.js`. Final scope/whitespace checks confirmed only this allowlist; existing meeting provider defaults and registries remain untouched. Full lint/build/desktop/package/API checks were not rerun in this stage; the Stage 1 seven updater lint warnings remain the recorded baseline.
 
 Next: implement only the next numbered prompt. No settings UI, assistant UI, capture, retrieval, answer pipeline or meeting behavior was implemented in this stage. Real speech verification can resume when its independent prerequisites are available.
+
+## Stage 3: independent configuration and contracts
+
+2026-11-10 (Asia/Calcutta). Started on `main`, HEAD `fad28ef7635d10103044fa0b78d265b442846a9d`, origin `https://github.com/shresthgoel77-png/Recall.git`. The pre-existing progress-file edit removed its final newline; its existing content is retained while appending this stage. No applicable `AGENTS.md` found. Scope: `electron/utils/config.js`, new `tests/recall-config.test.js`, and this document. No packages, registries, migrations, meeting settings, credentials, paths, UI, IPC handlers or shortcut registrations were changed beyond adding the requested Recall schema/readback fields.
+
+### Stored defaults and readback — implemented
+
+All twelve flat fields have schema defaults and explicit `getConfig()` entries in the existing `novameet-config` store:
+
+| Field | Default / constraint |
+| --- | --- |
+| `recallGnaniApiKey` | Empty string; maximum 4096 code units. Never an assistant preference/readiness value. |
+| `recallSttModel` | `prisma-v3.0`, currently the only allowed Recall STT model. |
+| `recallSttLanguage` | `hi-IN,en-IN`, currently the only allowed STT hint; matches the fixed Stage 2 request. |
+| `recallTtsModel` | `timbre-v3.0`; also allows `timbre-v2.5`. |
+| `recallTtsVoice` | `Shivani`; non-empty, at most 64 code units. Future readiness validates the model/voice pair; changing models must not silently substitute a voice. |
+| `recallTtsLanguage` | `auto`; allows the Stage 2 TTS locales, including `hi-IN`, `en-IN` and `hi-en`, independently of STT and meeting language. |
+| `recallLlmProvider` | `groq`; non-empty, at most 64 code units. Future readiness rejects an unregistered provider. |
+| `recallLlmModels` | `{ groq: 'openai/gpt-oss-120b' }`; at most eight model entries, provider keys at most 64 and non-empty model IDs at most 200 code units. This is an account-unverified Recall candidate, not a meeting default change. |
+| `recallShortcut` | `CommandOrControl+Shift+Space`; at most 80 code units. Empty string disables it and survives readback. No accelerator is registered in this stage. |
+| `recallStartupMode` | `text`; permits `text` or `voice`. Voice means showing controls awaiting explicit Start, never listening on open. |
+| `recallMuted` | `false`; explicit false survives readback. Unmuted does not enable TTS in Text mode or initiate playback. |
+| `recallContextBudget` | `24000`; integer 1000–24000, measured as UTF-8 bytes of the serialized evidence array, including metadata/JSON overhead. This is an application bound, not a token-count claim. |
+
+The Recall model map is returned independently, without meeting `resolveModels` defaults or model migration. Existing `sttService/sttModels`, `llmProvider/llmModels/llmFallback`, aliases and credential keys are unchanged. Later main code reads the chosen LLM's existing credential fields without saving them or altering provider/fallback selection. No implicit use of the meeting fallback is authorized for Recall. Gnani remains outside the global registries; later Settings composes existing controls with a separate Recall save payload.
+
+The following contracts are obligations for later stages, **not implemented IPC, retrieval, answer validators or readiness code in this stage**. The Stage 2 STT model/language are fixed; a future controller must check these preferences against that supported pair rather than pretend it applies arbitrary stored values.
+
+### Request, state and public-preference contract
+
+- Every Recall request, reply and event carries a UUID `requestId`. A logical ask retains its ID through capture/STT/retrieval/answer/TTS events. Independently invoked cancel/source/preferences operations have their own IDs; cancellation additionally names `targetRequestId`, and source opening names `answerRequestId` plus `evidenceId`. Main rejects malformed/reused ask IDs and stale events. One active ask, zero queued asks; cancellation/stop/readiness remain available while busy.
+- Fixed `stage`: `idle | listening | transcribing | retrieving | answering | speaking`. Fixed operation `status`: `running | complete | cancelled | error`. An idle snapshot has `stage: idle, status: complete`. Voice listening starts only after the user's explicit microphone Start; Stop finalizes one clip. Opening, switching modes, changing preferences and pressing the shortcut never acquire the microphone. Main shutdown/window close/cancel stops Recall resources only.
+- Fixed public error `code`: `INVALID_REQUEST | NOT_READY | BUSY | NO_SPEECH | INCOMPLETE_TRANSCRIPT | INVALID_ANSWER | SOURCE_CHANGED | SHORTCUT_CONFLICT | RATE_LIMITED | UNAVAILABLE | TIMEOUT | CANCELLED`. Errors are `{ code, message, retryable }`, with a fixed/localized message at most 240 UTF-16 code units, no raw provider text, secret, stack or cause. Missing/rejected credentials, scope/credit or unsupported settings map to `NOT_READY`; local size/format failures to `INVALID_REQUEST`; provider network/server/malformed speech responses to `UNAVAILABLE`; upstream/deadline timeouts to `TIMEOUT`. Stage 2 no-speech/truncation/rate-limit/cancellation codes retain their meaning. No evidence is a completed insufficient-evidence answer, not a fabricated claim.
+- `getPreferences({ requestId })` later returns `{ requestId, preferences, readiness }`. `preferences` explicitly picks the eleven Recall fields other than `recallGnaniApiKey`; never spread full `getConfig()`. `readiness` has `text`, `stt`, `tts` objects `{ configured: boolean, access: 'unverified' | 'verified' | 'failed' }` and `shortcut: 'disabled' | 'unregistered' | 'registered' | 'conflict' | 'invalid'`. Configured means local checks only; credential presence is not account/model/voice access proof. No readiness read initiates a cloud test. Default access remains unverified.
+- Credential entry later belongs to the trusted Settings surface with a dedicated Recall write allowlist; its read surface reports presence only. The assistant receives neither the key nor a credential-write method. Assistant preference writes, if exposed, exclude credentials and all meeting keys. The existing broad main-window config API is not a template for the Recall preload.
+- On later shortcut save, validate the accelerator and attempt registration before replacing the previous working registration/persisted value. Failure returns `SHORTCUT_CONFLICT` with visible feedback and a Disable option; it must not silently remove the working shortcut. Empty string explicitly unregisters/disables. Startup registration failure keeps the preference, reports conflict, and leaves other open methods available. No microphone/audio action is bound directly to a shortcut.
+
+### Evidence and validated answer contract
+
+```text
+Evidence = { evidenceId, sessionId, title, startedAt, section, text, locator, contentHash }
+Claim = { text, citations: [{ evidenceId, quote }] }
+Answer = { requestId, status: 'answered' | 'insufficient_evidence', text, claims: Claim[], sources: Evidence[] }
+```
+
+- Evidence IDs are request-local `E1`–`E12`; session IDs are non-empty stored IDs at most 128 code units, used only for validated DB lookups. Titles are at most 240, section labels 120 and text 1600 UTF-16 code units. `startedAt` is an ISO string or null. These fields are untrusted data, not instructions, URLs to visit, markup to execute or filesystem paths. Title-only matches cannot ground a factual claim. Retrieval must consider every eligible complete meeting before selecting bounded evidence, including imports/pastes; exclusions and retry tracking remain as established in Stage 1.
+- A locator is exactly one of `{ kind: 'transcript', segmentIndex, from, to, startSeconds, endSeconds }`, `{ kind: 'notes', path, from, to }`, or `{ kind: 'markdown', from, to }`. Offsets are integer, half-open UTF-16 offsets into the source string after CRLF/CR normalization to LF; evidence text is that exact slice. Segment indices refer to the saved array. `path` is at most six string/integer parts interpreted only through a fixed allowlist of known note fields/array indices, never eval/SQL/JSONPath or arbitrary object/prototype traversal. Times are finite non-negative seconds or null; paste/synthetic/unknown timing is null, never presented as real recording time. Markdown locates `_rawMarkdown`.
+- `contentHash` is `sha256:` plus 64 lowercase hex digits, computed in main over a canonical JSON snapshot of `{ sessionId, title, startedAt, notes, transcript }` from the saved row (recursively sorted object keys, original array order). The full snapshot is not sent to the assistant/LLM. Any source edit changes the hash. Recheck existence, eligibility and hash before publishing an answer and on source opening; missing/changed sources return `SOURCE_CHANGED`. Source opening resolves the retained answer's evidence ID in main, not a renderer-supplied path or arbitrary session query.
+- An answered result has 1–3 claims, each at most 240 code units with 1–3 citations. Each citation names an ID supplied to this request and an exact, non-empty quote of at most 240 code units occurring in that evidence text. Main constructs `text` from the validated claims in order; sources contain exactly the cited evidence union. Unknown/duplicate evidence IDs, invalid quotes, oversized output or extra unrecognized output fields fail validation. Source excerpts remain visibly verifiable. Shape/quote checks do not prove semantic entailment: the answering instructions must restrict claims to evidence, preserve contradictory decisions with both sources, and match the question's language.
+- `insufficient_evidence` has empty claims/sources and a short localized admission of insufficient evidence; no model-invented facts or mandatory LLM call. Answers normally use 1–3 short sentences and about 60 words or fewer. If TTS later fails, retain the already validated text/sources and report the speaking-stage error; never turn valid text into a speech-success claim.
+
+### Hard limits and audio wire contract
+
+| Item | Later-stage enforcement |
+| --- | --- |
+| Question / recognized question | 1–1000 trimmed UTF-16 code units and at most 4000 UTF-8 bytes; reject oversize rather than silently truncate. |
+| Evidence context | At most 12 passages; `Buffer.byteLength(JSON.stringify(evidence), 'utf8') <= recallContextBudget <= 24000`. Full LLM input, including prompt/question/evidence, at most 32768 UTF-8 bytes. |
+| Model / answer output | Raw LLM response at most 8192 UTF-8 bytes; constructed answer text at most 600 UTF-16 code units; final JSON answer with cited sources at most 65536 UTF-8 bytes. The normal 60-word target applies within these hard limits. |
+| Clip | At most 25 seconds and 3 MiB, mono 16-bit PCM WAV at 8000–48000 Hz; actual header/sample checks from Stage 2. |
+| Speech responses | STT JSON at most 64 KiB; TTS binary at most 4 MiB, 24 kHz mono 16-bit PCM WAV; error body at most 16 KiB; synthesized text at most 2000 code units. |
+| Time | Speech request deadline 30 seconds including upload/body reads; Text ask deadline 30 seconds; Voice pipeline deadline 90 seconds after capture stops. Capture itself ends at 25 seconds. Cancellation discards late results and stops Recall mic/playback, never the meeting. |
+| History / retention | Zero previous turns supplied to the LLM, zero persisted chat/history; one current question/answer/evidence set only. Clear on close; expire retained source handles after 10 minutes. No questions, answers, audio or evidence in config/logs/analytics/localStorage. |
+| Non-audio messages | Preferences/control/status messages at most 8192 serialized UTF-8 bytes; terminal answer uses the separate 65536-byte cap. Audio envelopes add at most 8192 bytes of metadata to the binary cap. |
+
+Future voice request: `{ requestId, audio: ArrayBuffer | Uint8Array, mimeType: 'audio/wav' }`; future speech result: `{ requestId, audio: ArrayBuffer | Uint8Array, mimeType: 'audio/wav', sampleRate: 24000 }`. Copy only a typed array view's `byteOffset`/`byteLength` range in main. Reject Blob, base64 strings, file paths and generic buffer-shaped objects at IPC. DOM Blob/FormData is allowed only inside the main speech HTTP adapter, not on the IPC wire. A saved startup Voice preference still waits for explicit Start. Cloud/loopback disclosure and mute/stop remain required before use; loopback can record spoken answers through headphones, and the meeting must never be paused to suppress capture.
+
+### Stage 3 validation
+
+- `pnpm.cmd test tests/recall-config.test.js tests/recall-speech.test.js`: initial sandbox attempt blocked before tests by `ERR_PNPM_STORE_DIR_OPEN_OPERATION_LOCK` / access denied, exit 1. Approved outside-sandbox run passed 139 tests; after the final preservation/bounds cases, rerun **141/141 passed**, two files, exit 0, 1.26 s (22 config and 119 speech tests).
+- `node --check electron/utils/config.js` and `node_modules/.bin/eslint.cmd electron/utils/config.js tests/recall-config.test.js`: passed with no output/warnings. Tests execute the actual config module using an injected in-memory `electron-store` replacement, validated by already-installed Ajv. The real store constructor/user profile is never opened. Coverage includes all-field schema/readback, disabled shortcut/false values, both directions of meeting/Recall save preservation, independent model maps and unchanged legacy migration semantics. Speech fetch remains mocked.
+- Final `git diff --check` and explicit three-file whitespace scan passed; only the three stage files are changed/untracked, nothing staged, HEAD unchanged. Git emitted only LF-to-CRLF conversion warnings for the edited tracked files. No package/lockfile, registry, migration, speech transport, main/renderer or extension changes.
+- Full suite, full lint, build, desktop, hotkey conflicts, live credentials/model access, real speech and decode/playback: **NOT TESTED in this stage**. The known Groq default/list invariant failure and seven updater lint warnings remain the recorded baseline; targeted passes do not clear them. The contracts above have not yet been implemented or exercised end-to-end.
+
+Next: only the next numbered prompt; no assistant renderer, readiness/answer IPC or hotkey registration yet. Live speech/account verification remains independent and pending its credentials/clip prerequisites.

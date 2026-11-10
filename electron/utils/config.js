@@ -31,6 +31,21 @@ const schema = {
   llmModels: { type: 'object', default: {} },
   llmFallback: { type: 'object', default: {} },
   sttModels: { type: 'object', default: {} },
+  // Recall preferences are independent of meeting providers/models and legacy migrations.
+  // Speech is Gnani-only; these defaults merely store preferences and never start audio/API work.
+  recallGnaniApiKey: { type: 'string', maxLength: 4096, default: '' },
+  recallSttModel: { type: 'string', enum: ['prisma-v3.0'], default: 'prisma-v3.0' },
+  recallSttLanguage: { type: 'string', enum: ['hi-IN,en-IN'], default: 'hi-IN,en-IN' },
+  recallTtsModel: { type: 'string', enum: ['timbre-v3.0', 'timbre-v2.5'], default: 'timbre-v3.0' },
+  recallTtsVoice: { type: 'string', minLength: 1, maxLength: 64, default: 'Shivani' },
+  recallTtsLanguage: { type: 'string', enum: ['auto', 'hi-IN', 'en-IN', 'hi-en', 'ta-IN', 'te-IN', 'kn-IN', 'ml-IN', 'mr-IN', 'pa-IN', 'bn-IN', 'gu-IN'], default: 'auto' },
+  recallLlmProvider: { type: 'string', minLength: 1, maxLength: 64, default: 'groq' },
+  // Recall-only candidate; account/model access is unverified. Never inherit meeting defaults.
+  recallLlmModels: { type: 'object', maxProperties: 8, propertyNames: { maxLength: 64 }, additionalProperties: { type: 'string', minLength: 1, maxLength: 200 }, default: { groq: 'openai/gpt-oss-120b' } },
+  recallShortcut: { type: 'string', maxLength: 80, default: 'CommandOrControl+Shift+Space' }, // '' disables it
+  recallStartupMode: { type: 'string', enum: ['text', 'voice'], default: 'text' },
+  recallMuted: { type: 'boolean', default: false },
+  recallContextBudget: { type: 'integer', minimum: 1000, maximum: 24000, default: 24000 }, // serialized evidence UTF-8 bytes
   systemAudioDevice: {
     type: 'string',
     default: '',
@@ -214,6 +229,18 @@ function getConfig() {
     llmModels:                 resolveModels(llmRegistry, store.get('llmModels')),
     llmFallback,
     sttModels:                 resolveModels(sttRegistry, store.get('sttModels')),
+    recallGnaniApiKey:          store.get('recallGnaniApiKey') || '',
+    recallSttModel:             store.get('recallSttModel') || 'prisma-v3.0',
+    recallSttLanguage:          store.get('recallSttLanguage') || 'hi-IN,en-IN',
+    recallTtsModel:             store.get('recallTtsModel') || 'timbre-v3.0',
+    recallTtsVoice:             store.get('recallTtsVoice') || 'Shivani',
+    recallTtsLanguage:          store.get('recallTtsLanguage') || 'auto',
+    recallLlmProvider:          store.get('recallLlmProvider') || 'groq',
+    recallLlmModels:            store.get('recallLlmModels') || { groq: 'openai/gpt-oss-120b' },
+    recallShortcut:             store.get('recallShortcut') ?? 'CommandOrControl+Shift+Space',
+    recallStartupMode:          store.get('recallStartupMode') || 'text',
+    recallMuted:                store.get('recallMuted') ?? false,
+    recallContextBudget:        store.get('recallContextBudget') ?? 24000,
     systemAudioDevice:         store.get('systemAudioDevice') || '',
     micDevice:                 store.get('micDevice') || '',
     autoLaunch:                store.get('autoLaunch') ?? true,
