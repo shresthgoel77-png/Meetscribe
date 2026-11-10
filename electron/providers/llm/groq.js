@@ -19,7 +19,7 @@ function friendlyError(err) {
   return err;
 }
 
-async function generate({ systemPrompt, userPrompt, model, config, json }, deps = {}) {
+async function generate({ systemPrompt, userPrompt, model, config, json, signal, maxTokens, maxResponseBytes }, deps = {}) {
   const apiKey = config.groqApiKey;
   if (!apiKey || !apiKey.trim()) throw new Error('Groq API key is required');
 
@@ -33,12 +33,17 @@ async function generate({ systemPrompt, userPrompt, model, config, json }, deps 
   };
   // JSON mode requires the word "JSON" in the messages; buildUserPrompt guarantees it.
   if (json) body.response_format = { type: 'json_object' };
+  if (maxTokens !== undefined) {
+    if (!Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 8192) throw new Error('Invalid output limit');
+    body.max_completion_tokens = maxTokens;
+  }
 
   try {
     const data = await fetchJson(
       `${GROQ_BASE}/chat/completions`,
-      { method: 'POST', headers: headers(apiKey), body: JSON.stringify(body) },
-      { label: 'Groq', fetchImpl: deps.fetchImpl || globalThis.fetch }
+      { method: 'POST', headers: headers(apiKey), body: JSON.stringify(body), ...(signal ? { signal } : {}),
+        ...(signal || maxResponseBytes !== undefined ? { redirect: 'error' } : {}) },
+      { label: 'Groq', fetchImpl: deps.fetchImpl || globalThis.fetch, maxResponseBytes }
     );
     const text = data?.choices?.[0]?.message?.content;
     if (!text) throw new Error('No response from Groq API');

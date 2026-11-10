@@ -1,6 +1,27 @@
-async function generate({ systemPrompt, userPrompt, model, config }) {
+async function generate({ systemPrompt, userPrompt, model, config, json, signal, maxTokens, maxResponseBytes }, deps = {}) {
   const apiKey = config.geminiApiKey;
   if (!apiKey) throw new Error('Gemini API key is required');
+
+  // The installed 0.24.1 SDK forwards in-flight abort, but misses pre-aborted signals and reads
+  // an unbounded response.json(). Opt-in bounded Recall calls use the same REST contract.
+  // Keep the original SDK path and defaults for all existing note-generation callers.
+  if (signal || maxTokens !== undefined || maxResponseBytes !== undefined) {
+    if (maxTokens !== undefined && (!Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 8192)) throw new Error('Invalid output limit');
+    if (typeof model !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(model)) throw new Error('Invalid Gemini model ID');
+    const { fetchJson } = require('../shared/http');
+    const data = await fetchJson(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      signal, redirect: 'error',
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: { ...(maxTokens !== undefined ? { maxOutputTokens: maxTokens } : {}),
+          ...(json ? { responseMimeType: 'application/json' } : {}) } }),
+    }, { label: 'Gemini', fetchImpl: deps.fetchImpl || globalThis.fetch, maxResponseBytes: maxResponseBytes ?? 65536 });
+    const parts = data?.candidates?.[0]?.content?.parts;
+    const answer = Array.isArray(parts) ? parts.filter(p => !p.thought && typeof p.text === 'string').map(p => p.text).join('') : '';
+    if (!answer.trim()) throw new Error('No response from Gemini API');
+    return answer.trim();
+  }
 
   const { GoogleGenerativeAI } = require('@google/generative-ai');
   const genModel = new GoogleGenerativeAI(apiKey).getGenerativeModel({

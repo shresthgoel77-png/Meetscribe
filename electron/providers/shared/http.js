@@ -95,9 +95,37 @@ function httpsPut(url, body, extraHeaders = {}) {
  * fetch() wrapper for OpenAI-compatible JSON/multipart APIs. Throws an Error
  * carrying `.status` and `.retryAfterMs` on non-2xx so callers can map/retry.
  */
-async function fetchJson(url, init = {}, { label = 'API', fetchImpl = globalThis.fetch } = {}) {
+async function fetchJson(url, init = {}, { label = 'API', fetchImpl = globalThis.fetch, maxResponseBytes } = {}) {
+  if (maxResponseBytes !== undefined && (!Number.isInteger(maxResponseBytes) || maxResponseBytes < 1)) throw new Error('Invalid response limit');
+  if (init.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
   const res = await fetchImpl(url, init);
-  const text = await res.text();
+  let text;
+  if (maxResponseBytes === undefined) text = await res.text(); // existing callers retain their behavior
+  else {
+    const cancel = () => { try { res.body?.cancel().catch(() => {}); } catch { /* locked */ } };
+    if (init.signal?.aborted) { cancel(); throw new DOMException('Request aborted', 'AbortError'); }
+    if (!/^application\/(?:[a-z0-9.-]+\+)?json(?:;|$)/i.test(res.headers.get('content-type') || '')) {
+      cancel(); throw new Error('Invalid JSON response type');
+    }
+    if (Number(res.headers.get('content-length')) > maxResponseBytes) { cancel(); throw new Error('Response size limit exceeded'); }
+    if (!res.body?.getReader) throw new Error('Missing response body');
+    const reader = res.body.getReader();
+    const abort = () => { reader.cancel().catch(() => {}); };
+    init.signal?.addEventListener('abort', abort, { once: true });
+    const chunks = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (init.signal?.aborted) throw new DOMException('Request aborted', 'AbortError');
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxResponseBytes) { abort(); throw new Error('Response size limit exceeded'); }
+        chunks.push(Buffer.from(value));
+      }
+      text = Buffer.concat(chunks, size).toString('utf8');
+    } finally { init.signal?.removeEventListener('abort', abort); reader.releaseLock(); }
+  }
   let data;
   try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
   if (!res.ok) {

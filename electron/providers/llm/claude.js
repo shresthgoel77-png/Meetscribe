@@ -33,13 +33,14 @@ function friendlyError(err) {
   return err;
 }
 
-async function generate({ systemPrompt, userPrompt, model, config }, deps = {}) {
+async function generate({ systemPrompt, userPrompt, model, config, signal, maxTokens, maxResponseBytes }, deps = {}) {
   const apiKey = config.claudeApiKey;
   if (!apiKey || !apiKey.trim()) throw new Error('Anthropic API key is required');
+  if (maxTokens !== undefined && (!Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 8192)) throw new Error('Invalid output limit');
 
   const body = {
     model,
-    max_tokens: 8192,
+    max_tokens: maxTokens ?? 8192,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     temperature: 0.3,
@@ -48,8 +49,9 @@ async function generate({ systemPrompt, userPrompt, model, config }, deps = {}) 
   try {
     const data = await fetchJson(
       `${CLAUDE_BASE}/messages`,
-      { method: 'POST', headers: headers(apiKey), body: JSON.stringify(body) },
-      { label: 'Anthropic', fetchImpl: deps.fetchImpl || globalThis.fetch }
+      { method: 'POST', headers: headers(apiKey), body: JSON.stringify(body), ...(signal ? { signal } : {}),
+        ...(signal || maxResponseBytes !== undefined ? { redirect: 'error' } : {}) },
+      { label: 'Anthropic', fetchImpl: deps.fetchImpl || globalThis.fetch, maxResponseBytes }
     );
     const text = data?.content?.[0]?.text;
     if (!text) throw new Error('No response from Anthropic API');
