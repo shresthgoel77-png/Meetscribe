@@ -5,7 +5,7 @@ if (process.argv.includes('--smoke')) {
   return;
 }
 
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, protocol, desktopCapturer, dialog, nativeTheme, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell, protocol, desktopCapturer, dialog, nativeTheme, Notification, globalShortcut, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Readable } = require('stream');
@@ -20,7 +20,7 @@ if (!app.requestSingleInstanceLock()) {
   return;
 }
 
-const { getConfig, setConfig, setMultipleConfig } = require('./utils/config');
+const { getConfig, setConfig, setMultipleConfig, validateRecallShortcut } = require('./utils/config');
 const logger = require('./utils/logger');
 const { startWebSocketServer, stopWebSocketServer, broadcastToExtension } = require('./websocket-server');
 const { startRecording, stopRecording, listAudioDevices, probeAudioDevice, convertWebmToWav, convertFileToWav, getMediaDurationSeconds } = require('./audio/recorder');
@@ -37,6 +37,8 @@ const db = require('./db/sessions');
 const meetingDetector = require('./detection/meeting-detector');
 const { showOverlay, hideOverlay, overlayClosed, destroyOverlay, resizeOverlay, moveOverlay, setOverlayTheme, getOverlayWindow } = require('./overlay/overlay-window');
 const { registerRecallIpc } = require('./services/recall-ipc');
+const { createRecallWindowController } = require('./overlay/recall-window');
+const { createRecallShortcutController } = require('./services/recall-shortcut');
 const { getPermissionStatus, requestPermission, openPermissionSettings } = require('./services/permissions');
 const { normalizeMacCaptureStrategy } = require('./audio/mac-capture');
 
@@ -175,7 +177,9 @@ protocol.registerSchemesAsPrivileged(['meetscribe-audio', 'novameet-audio'].map(
 let mainWindow = null;
 let tray = null;
 let isRecording = false;
-let recallIpc = null; // No Recall window is constructed in this stage.
+let recallIpc = null;
+let recallWindowController = null;
+let recallShortcuts = null;
 
 function sendToRenderer(channel, ...args) {
   try {
@@ -1005,6 +1009,32 @@ function applyMeetingDetection(enabled) {
 
 // ── IPC Handlers ─────────────────────────────────────────────────────────────
 
+// Keep the existing config routes/side effects. A conflicting Recall shortcut is the only
+// rejected field; unrelated fields in that same save still apply. Persist the shortcut last
+// so a failed config write can roll back the new OS binding without a misleading saved value.
+function saveSettingsWithRecall(updates, single = false) {
+  const persist = values => {
+    if (Object.hasOwn(values, 'recallShortcut')) {
+      const rest = { ...values }; delete rest.recallShortcut;
+      if (Object.keys(rest).length) setMultipleConfig(rest);
+      setConfig('recallShortcut', values.recallShortcut);
+    } else if (single) {
+      for (const [key, value] of Object.entries(values)) setConfig(key, value);
+    } else setMultipleConfig(values);
+  };
+  const result = recallShortcuts ? recallShortcuts.save(updates, persist) : (persist(updates), { applied: updates });
+  const applied = result.applied;
+  if ('autoLaunch' in applied) applyAutoLaunch(applied.autoLaunch);
+  if ('meetingDetection' in applied) applyMeetingDetection(applied.meetingDetection !== false);
+  if ('theme' in applied) {
+    const theme = resolveEffectiveTheme(applied.theme);
+    setOverlayTheme(theme); recallWindowController?.setTheme(theme);
+  }
+  if ('macCaptureStrategy' in applied) installDisplayMediaHandler();
+  if (result.error) throw result.error;
+  return true;
+}
+
 function registerIpcHandlers() {
   // ── Custom window controls (frameless window) ──────────────────────────────
   ipcMain.handle('window:minimize',  () => {
@@ -1046,25 +1076,11 @@ function registerIpcHandlers() {
   ipcMain.handle('config:autoLaunchStatus', () => getAutoLaunchStatus());
 
   ipcMain.handle('config:set', (_e, key, value) => {
-    setConfig(key, value);
-    if (key === 'autoLaunch') {
-      applyAutoLaunch(value);
-    }
-    if (key === 'meetingDetection') applyMeetingDetection(value !== false);
-    if (key === 'theme') setOverlayTheme(resolveEffectiveTheme(value));
-    if (key === 'macCaptureStrategy') installDisplayMediaHandler();
-    return true;
+    return saveSettingsWithRecall({ [key]: value }, true);
   });
 
   ipcMain.handle('config:set-multiple', (_e, updates) => {
-    setMultipleConfig(updates);
-    if ('autoLaunch' in updates) {
-      applyAutoLaunch(updates.autoLaunch);
-    }
-    if ('meetingDetection' in updates) applyMeetingDetection(updates.meetingDetection !== false);
-    if ('theme' in updates) setOverlayTheme(resolveEffectiveTheme(updates.theme));
-    if ('macCaptureStrategy' in updates) installDisplayMediaHandler();
-    return true;
+    return saveSettingsWithRecall(updates);
   });
 
   // ── macOS permissions + system-audio test (Settings › System) ─────────────
@@ -1773,7 +1789,21 @@ app.whenReady().then(async () => {
   await db.initialize();
   db.markStaleRecordingSessionsAsError();
   registerIpcHandlers();
+  recallWindowController = createRecallWindowController({ BrowserWindow, screen,
+    getTheme: () => resolveEffectiveTheme(getConfig().theme || 'light'),
+    getAnchorWindow: () => {
+      const overlay = getOverlayWindow();
+      if (overlay?.isVisible()) return overlay;
+      return mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized() ? mainWindow : null;
+    },
+    attachWindow: win => recallIpc?.attachRecallWindow(win),
+  });
+  recallShortcuts = createRecallShortcutController({ globalShortcut, validateShortcut: validateRecallShortcut,
+    toggle: () => recallWindowController.toggle() });
   recallIpc = registerRecallIpc({ ipcMain, getMainWindow: () => mainWindow, getOverlayWindow, getConfig,
+    openRecallWindow: () => recallWindowController.open(),
+    resizeRecallWindow: (win, width, height) => recallWindowController.resize(win, width, height),
+    getShortcutState: () => recallShortcuts.getState(),
     getRecordingState: () => ({ activeRecordingId: isRecording ? currentSessionId : null,
       processingSessionIds: [...recallProcessingSessions.keys()] }),
     openSource: (evidence, request) => {
@@ -1783,6 +1813,8 @@ app.whenReady().then(async () => {
           evidenceId: evidence.evidenceId, locator: evidence.locator } });
     },
   });
+
+  recallShortcuts.start(getConfig().recallShortcut);
 
   // Serve session audio for renderer playback:
   // meetscribe-audio://session/<sessionId>  (preferred)
@@ -1920,7 +1952,10 @@ app.whenReady().then(async () => {
   startCalendarPoller(config);
 
   if (config.meetingDetection !== false) applyMeetingDetection(true);
-  nativeTheme.on('updated', () => setOverlayTheme(resolveEffectiveTheme(getConfig().theme || 'light')));
+  nativeTheme.on('updated', () => {
+    const theme = resolveEffectiveTheme(getConfig().theme || 'light');
+    setOverlayTheme(theme); recallWindowController?.setTheme(theme);
+  });
 
   app.on('activate', () => {
     focusMainWindow();
@@ -1934,6 +1969,8 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  recallShortcuts?.dispose();
+  recallWindowController?.dispose();
   recallIpc?.dispose();
   stopWebSocketServer();
   stopEventPoller();

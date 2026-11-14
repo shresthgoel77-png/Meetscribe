@@ -25,7 +25,7 @@ export default [
   },
   // Preload runs in the renderer's isolated world, so it also sees the DOM.
   {
-    files: ['electron/preload.js'],
+    files: ['electron/preload.js', 'electron/recall-preload.js'],
     languageOptions: {
       globals: { ...globals.browser },
     },

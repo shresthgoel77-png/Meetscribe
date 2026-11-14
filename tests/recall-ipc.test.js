@@ -57,10 +57,10 @@ function setup(options = {}) {
   if (options.actual) vi.spyOn(llmRegistry.get('groq'), 'generate').mockImplementation(async args => {
     const p = JSON.parse(args.userPrompt);
     if (!p.evidence) return JSON.stringify({ terms: [] });
+    if (p.verificationMode === 'claims') return JSON.stringify({ claims: p.draft.claims.map((_claim, index) => ({ index, supported: true, conflictsHandled: true, languageMatched: true, coverageHonest: true, reason: 'SUPPORTED' })) });
     if (p.draft) return JSON.stringify({ supported: true, conflictsHandled: true, languageMatched: true, coverageHonest: true });
     const e = p.evidence[0];
-    return JSON.stringify({ status: 'answered', claims: [{ text: 'Atlas budget is 50000.', evidenceIds: [e.evidenceId],
-      citations: [{ evidenceId: e.evidenceId, quote: e.text }] }], coverage: 'sufficient', uncertainty: [] });
+    return JSON.stringify({ status: 'answered', claims: [{ text: 'Atlas budget is 50000.', unitIds: [e.unitId] }], coverage: 'sufficient', uncertainty: [] });
   });
   const openSource = vi.fn(() => true); const getConfig = vi.fn(() => config);
   const deps = { ipcMain, getMainWindow: () => main, getOverlayWindow: () => overlay, getConfig, llmRegistry, speech, openSource,
@@ -181,10 +181,48 @@ describe('preflight validation before service calls', () => {
 });
 
 describe('owned events, cancellation and voice sequencing', () => {
+  it('retains only sanitized speech-stage details for a post-answer invalid TTS response', async () => {
+    const s = setup(); s.speech.synthesize.mockRejectedValue(Object.assign(new Error('private body/key'), { code: 'INVALID_RESPONSE', status: 502 }));
+    await s.call(C.audio, s.recall, clip()); await flush();
+    expect(s.events(undefined, E.answer)).toHaveLength(1);
+    expect(s.events(undefined, E.error)).toHaveLength(1);
+    expect(s.events(undefined, E.error)[0]).toMatchObject({ stage: 'speaking', error: { code: 'UNAVAILABLE', speechCode: 'INVALID_RESPONSE', httpStatus: 502 } });
+    expect(JSON.stringify(s.events())).not.toContain('private body/key');
+  });
+  it('mutes an owned Voice turn while answering without cancelling its validated text', async () => {
+    const s = setup(); let release;
+    s.fakeService.ask.mockImplementationOnce(p => new Promise(resolve => { release = () => resolve(success(p.requestId)); }));
+    const p = clip(); await s.call(C.audio, s.recall, p); await flush();
+    expect((await s.call(C.muted, s.main, { requestId: id(), targetRequestId: p.requestId, muted: true })).error.code).toBe('INVALID_REQUEST');
+    expect((await s.call(C.muted, s.recall, { requestId: id(), targetRequestId: id(), muted: true })).error.code).toBe('INVALID_REQUEST');
+    expect((await s.call(C.muted, s.recall, { requestId: id(), targetRequestId: p.requestId, muted: true })).muted).toBe(true);
+    release(); await flush(); expect(s.events(undefined, E.answer)).toHaveLength(1); expect(s.speech.synthesize).not.toHaveBeenCalled();
+  });
+  it('aborts synthesis on mute, preserves the answer, and discards late returned WAV', async () => {
+    const s = setup(); let release; let signal;
+    s.speech.synthesize.mockImplementationOnce(p => { signal = p.signal; return new Promise(resolve => { release = resolve; }); });
+    const p = clip(); await s.call(C.audio, s.recall, p); await flush();
+    expect(s.events(undefined, E.answer)).toHaveLength(1);
+    expect((await s.call(C.muted, s.recall, { requestId: id(), targetRequestId: p.requestId, muted: true })).status).toBe('complete');
+    expect(signal.aborted).toBe(true); await flush();
+    release({ audio: wav(0.1, 24000), mimeType: 'audio/wav' }); await flush(); expect(s.events(undefined, E.audio)).toEqual([]);
+    expect(s.events(undefined, E.answer)).toHaveLength(1);
+  });
+  it('unmute validates the current turn speech choices and rejects extra fields/child frames', async () => {
+    const s = setup({ config: { recallTtsVoice: 'invalid-voice' } }); let release;
+    s.fakeService.ask.mockImplementationOnce(p => new Promise(resolve => { release = () => resolve(success(p.requestId)); }));
+    const p = clip({ muted: true }); await s.call(C.audio, s.recall, p); await flush();
+    const request = { requestId: id(), targetRequestId: p.requestId, muted: false };
+    expect((await s.call(C.muted, s.recall, request)).error.code).toBe('INVALID_REQUEST');
+    expect((await s.call(C.muted, s.recall, { ...request, muted: true, key: 'must-not-write' })).error.code).toBe('INVALID_REQUEST');
+    expect((await s.call(C.muted, s.recall, { ...request, muted: true }, { parent: s.recall.webContents.mainFrame })).error.code).toBe('INVALID_REQUEST');
+    release(); await flush(); expect(s.speech.synthesize).not.toHaveBeenCalled(); expect(s.events(undefined, E.answer)).toHaveLength(1);
+  });
   it('routes stage/answer/audio only to the owning actual Recall frame using one turn ID', async () => {
     const s = setup(); const p = clip(); await s.call(C.audio, s.recall, p); await flush();
     expect(s.speech.transcribe).toHaveBeenCalledOnce(); expect(s.fakeService.ask).toHaveBeenCalledOnce(); expect(s.speech.synthesize).toHaveBeenCalledOnce();
-    expect(s.events().map(e => e.name)).toEqual([E.stage, E.answer, E.stage, E.audio, E.stage]);
+    expect(s.events().map(e => e.name)).toEqual([E.stage, E.stage, E.answer, E.stage, E.audio, E.stage]);
+    expect(s.events()[1]).toMatchObject({ name: E.stage, stage: 'retrieving', question: 'Atlas budget?' });
     expect(s.events().every(e => e.requestId === p.requestId)).toBe(true);
     expect(s.events(s.main)).toEqual([]); expect(s.events(s.overlay)).toEqual([]);
     expect(s.events(undefined, E.audio)[0]).toMatchObject({ mimeType: 'audio/wav', sampleRate: 24000 });
@@ -335,6 +373,15 @@ describe('settings-only independent tests with unsaved values', () => {
 });
 
 describe('current-evidence source navigation through the real answering/retrieval services', () => {
+  it.each(['MALFORMED_ANSWER', 'UNSUPPORTED_ANSWER'])('preserves the fixed %s failure without provider bodies or an answer event', async code => {
+    const s = setup();
+    s.fakeService.ask.mockImplementationOnce(async p => ({ requestId: p.requestId, status: 'error',
+      error: { code, message: 'PRIVATE PROVIDER BODY', cause: 'PRIVATE CAUSE' } }));
+    await s.call(C.text, s.recall, text());
+    await vi.waitFor(() => expect(s.events(undefined, E.error)).toHaveLength(1));
+    expect(s.events(undefined, E.error)[0].error).toMatchObject({ code, retryable: false });
+    expect(JSON.stringify(s.events())).not.toContain('PRIVATE'); expect(s.events(undefined, E.answer)).toEqual([]);
+  });
   const answer = async s => { const p = text(); await s.call(C.text, s.recall, p); await vi.waitFor(() => expect(s.events(undefined, E.answer)).toHaveLength(1)); return s.events(undefined, E.answer)[0]; };
   const open = (s, a, extra = {}) => s.call(C.source, s.recall, { requestId: id(), answerRequestId: a.requestId, evidenceId: a.sources[0].evidenceId, ...extra });
   it('dispatches trusted session/locator intent, honestly reports only requested navigation', async () => {

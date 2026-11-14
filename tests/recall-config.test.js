@@ -28,7 +28,7 @@ const withoutRecall = obj => Object.fromEntries(Object.entries(obj).filter(([key
 function loadConfig(seed = {}) {
   // Run the actual CommonJS module with an injected, schema-validating in-memory store.
   // The real electron-store constructor is NEVER imported or invoked; no user profile is opened.
-  const allowed = new Set(['../services/prompts', '../providers', './configMigration', '../audio/mac-capture']);
+  const allowed = new Set(['../services/prompts', '../providers', './configMigration', '../audio/mac-capture', './recall-shortcut.json']);
   let schema;
   let data;
   let name;
@@ -63,6 +63,19 @@ function loadConfig(seed = {}) {
 }
 
 describe('Recall config defaults and readback', () => {
+  it.each(['', 'CommandOrControl+Shift+Space', 'ctrl+alt+f24', 'Meta+Plus', 'Alt+Num3', 'Ctrl+/', 'F1'])('accepts shortcut syntax without OS registration: %s', value => {
+    const { config } = loadConfig();
+    config.setConfig('recallShortcut', value);
+    expect(config.getConfig().recallShortcut).toBe(value);
+  });
+  it.each(['Ctrl+', 'Ctrl+Foo', 'Ctrl+A+B', 'Control+F25', ' Ctrl+K', 'Ctrl+K\n', 'Ctrl++', 'Shift', 1])('rejects bad shortcut before any mixed-save writes: %s', value => {
+    const { config, snapshot, writes } = loadConfig();
+    const before = snapshot();
+    expect(() => config.setMultipleConfig({ notionApiKey: 'must-not-write', recallShortcut: value })).toThrow('Invalid Recall shortcut');
+    expect(snapshot()).toEqual(before);
+    expect(writes).toEqual([]);
+    expect(() => config.setConfig('recallShortcut', value)).toThrow('Invalid Recall shortcut');
+  });
   it('includes every Recall schema field explicitly in getConfig, with independent passive defaults', () => {
     const { config, schema, name, writes, fetch } = loadConfig();
     const cfg = config.getConfig();
@@ -176,7 +189,7 @@ describe('Recall config defaults and readback', () => {
   ])('rejects invalid %s values without changing config', (key, value) => {
     const { config, snapshot } = loadConfig();
     const before = snapshot();
-    expect(() => config.setConfig(key, value)).toThrow('Schema validation failed');
+    expect(() => config.setConfig(key, value)).toThrow(key === 'recallShortcut' ? 'Invalid Recall shortcut' : 'Schema validation failed');
     expect(snapshot()).toEqual(before);
   });
 });

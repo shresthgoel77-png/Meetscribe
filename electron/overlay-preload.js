@@ -18,6 +18,7 @@ function subscribe(channel, callback) {
 contextBridge.exposeInMainWorld('meetscribeOverlay', {
   startupTheme,
   getState:      () => ipcRenderer.invoke('overlay:get-state'),
+  openRecall:    (request) => ipcRenderer.invoke('recall:open', request),
   start:         () => ipcRenderer.invoke('overlay:start'),
   stop:          () => ipcRenderer.invoke('overlay:stop'),
   dismiss:       () => ipcRenderer.invoke('overlay:dismiss'),

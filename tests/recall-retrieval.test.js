@@ -22,7 +22,71 @@ function library(rows = []) {
 }
 const ids = result => result.evidence.map(e => e.sessionId);
 
+describe('bounded latest-meeting scope', () => {
+  const rows = () => [
+    meeting('old', { started_at: '2026-01-01T00:00:00Z', notes: { summary: 'Atlas budget is 50000.' } }),
+    meeting('second', { started_at: '2026-11-09T00:00:00Z', notes: { summary: 'Atlas budget is 50000.' } }),
+    meeting('newest', { started_at: '2026-11-10T00:00:00Z', notes: { summary: 'Atlas budget is 70000.' } }),
+    meeting('empty', { started_at: '2026-11-11T00:00:00Z' }),
+    meeting('unfinished', { status: 'generating', started_at: '2026-11-12T00:00:00Z', notes: { summary: 'Atlas budget is 50000.' } }),
+  ];
+  it('selects content-bearing complete sessions by started_at and reserves evidence for each', () => {
+    const { ask } = library(rows()); const r = ask('Atlas budget', { latestMeetings: 2 });
+    expect([...new Set(ids(r))].sort()).toEqual(['newest', 'second']);
+    expect(r.meetings).toEqual({ requested: 2, available: 2, retrieved: 2 });
+    expect(ids(ask('Atlas budget'))).toContain('old');
+  });
+  it('preserves genuine amount anchors and reports a meeting lacking matching evidence', () => {
+    const { ask } = library(rows()); const r = ask('Atlas budget 50000', { latestMeetings: 2 });
+    expect(ids(r)).toEqual(['second']); expect(r.meetings).toEqual({ requested: 2, available: 2, retrieved: 1 });
+  });
+  it('applies active/processing exclusions before selecting, and reports shortages/budget gaps', () => {
+    const { ask } = library(rows()); const r = ask('Atlas budget', { latestMeetings: 2, activeRecordingId: 'newest', processingSessionIds: ['second'] });
+    expect(ids(r)).toEqual(['old']); expect(r.meetings).toEqual({ requested: 2, available: 1, retrieved: 1 });
+    const tiny = ask('Atlas budget', { latestMeetings: 2, recallContextBudget: 2, includeAvailability: true });
+    expect(tiny.meetings.retrieved).toBe(0); expect(tiny.budgetLimited).toBe(true);
+  });
+  it('uses stable ID ties and refuses unsupported counts', () => {
+    const { ask } = library(['b', 'a'].map(id => meeting(id, { notes: { summary: 'Atlas agenda.' } })));
+    expect(ids(ask('Atlas', { latestMeetings: 1 }))).toEqual(['a']);
+    for (const latestMeetings of [0, 6, 1.5, '2']) expect(() => ask('Atlas', { latestMeetings })).toThrow();
+  });
+});
+
 describe('Recall corpus and extraction', () => {
+  it('reserves action/owner/due and budget conditions for each selected meeting ahead of title-only matches', () => {
+    const { ask } = library(['first', 'second'].map(id => meeting(id, { title: 'Atlas budget action owner deadline', notes: {
+      participants: Array.from({ length: 12 }, (_, i) => ({ name: `Person ${i}`, role: 'Atlas budget reviewer' })),
+      action_items: [{ task: 'Review the supplier response.', owner: 'Speaker A', due: 'Friday' }],
+      decisions: ['The budget is proposed at 40000, subject to review; it is not approved.'],
+    } })));
+    const r = ask('Atlas action items owner deadline approved budget', { latestMeetings: 2, maxPassages: 4 });
+    for (const id of ['first', 'second']) {
+      const evidence = r.evidence.filter(e => e.sessionId === id);
+      expect(evidence.some(e => /Review the supplier response/.test(e.text) && /Owner: Speaker A/.test(e.text) && /Due: Friday/.test(e.text))).toBe(true);
+      expect(evidence.some(e => e.text.includes('subject to review; it is not approved'))).toBe(true);
+    }
+    expect(r.contextBytes).toBeLessThanOrEqual(LIMITS.contextBytes);
+  });
+  it('retrieves overview content for a scoped agenda even when its topic shares no query words', () => {
+    const { ask } = library([meeting('topics', { notes: { sections: [{ heading: 'Renewal planning', content: 'The discussion covered supplier renewal.' }] } })]);
+    expect(ask('agenda', { latestMeetings: 1 }).evidence.some(e => e.text.includes('supplier renewal'))).toBe(true);
+    expect(ask('agenda').evidence).toEqual([]);
+  });
+  it('keeps adjacent transcript action, owner, deadline and approval conditions together and revalidates them', () => {
+    const { ask, check, records } = library([meeting('spoken', { transcript: [
+      { speaker: 'A', text: 'Atlas supplier review is the next action.', startTime: 0, endTime: 3 },
+      { speaker: 'B', text: 'Speaker C owns that review; it is due Friday.', startTime: 3, endTime: 6 },
+      { speaker: 'A', text: 'The proposed budget is 40000. It is not approved.', startTime: 6, endTime: 9 },
+    ] })]);
+    const r = ask('Atlas action owner deadline budget', { latestMeetings: 1 });
+    const e = r.evidence.find(e => e.locator.segmentEnd === 2 && e.locator.segmentIndex === 0);
+    expect(e.text).toContain('owns that review'); expect(e.text).toContain('due Friday'); expect(e.text).toContain('not approved');
+    expect(check([e]).evidence).toEqual([e]);
+    expect(ask('Atlas').evidence.every(e => e.locator.segmentEnd === undefined)).toBe(true);
+    records.get('spoken').transcript[1].text = 'The assignment changed.';
+    expect(() => check([e])).toThrowError(expect.objectContaining({ code: 'SOURCE_CHANGED' }));
+  });
   it('finds an older-than-latest-five decision using the unlimited read API', () => {
     const old = meeting('old', { started_at: '2020-01-01T00:00:00Z', notes: { decisions: ['The Atlas renewal cap is 50000. Do not increase it.'] } });
     const recent = Array.from({ length: 9 }, (_, i) => meeting(`recent-${i}`, {

@@ -119,6 +119,21 @@ function validateOutputAudio(audio) {
   return wav;
 }
 
+// Gnani's completed HTTP response can carry pipe-style unknown RIFF/data lengths.
+// Normalize only the observed canonical PCM header, using the bounded complete body.
+// All format/sample checks still run below; input/STT validation remains strict.
+function normalizeTtsWav(audio) {
+  if (audio.length >= 46 && audio.toString('latin1', 0, 4) === 'RIFF' &&
+      audio.readUInt32LE(4) === 0xffffffff && audio.toString('latin1', 8, 16) === 'WAVEfmt ' &&
+      audio.readUInt32LE(16) === 16 && audio.toString('latin1', 36, 40) === 'data' &&
+      audio.readUInt32LE(40) === 0xffffffff) {
+    const copy = Buffer.from(audio);
+    copy.writeUInt32LE(copy.length - 8, 4); copy.writeUInt32LE(copy.length - 44, 40);
+    return copy;
+  }
+  return audio;
+}
+
 function cancelBody(response) {
   // Do not await cancellation: a broken server/stream must not extend the request deadline.
   try { Promise.resolve(response?.body?.cancel()).catch(() => {}); } catch { /* already locked */ }
@@ -264,7 +279,7 @@ async function synthesize({ apiKey, text, model = 'timbre-v3.0', voice, language
     });
     await validateStatus(response, requestSignal);
     if (contentType(response) !== 'audio/wav') { cancelBody(response); fail('INVALID_RESPONSE'); }
-    const audio = await readBounded(response, LIMITS.audioBytes, requestSignal);
+    const audio = normalizeTtsWav(await readBounded(response, LIMITS.audioBytes, requestSignal));
     const wav = validateOutputAudio(audio);
     return { audio, mimeType: 'audio/wav', ...wav };
   });

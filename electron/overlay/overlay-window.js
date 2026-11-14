@@ -7,7 +7,7 @@ const { BrowserWindow, screen } = require('electron');
 
 const isDev = process.env.NODE_ENV === 'development';
 const isMac = process.platform === 'darwin';
-const WIDTH = 360;
+const WIDTH = 400;
 const INITIAL_HEIGHT = 56;
 const TOP_MARGIN = 12;
 const CLOSE_FALLBACK_MS = 1200;   // hide anyway if the renderer never reports its close animation done

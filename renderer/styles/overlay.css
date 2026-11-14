@@ -4,7 +4,7 @@
    away; main hides the window once overlayBarLift ends. */
 
 .overlay-bar {
-  width: 360px;
+  width: 400px;
   margin: 0 auto;
   overflow: hidden;
   transform-origin: 50% 0;
@@ -16,8 +16,8 @@
 .overlay-draggable button { cursor: pointer; }
 
 /* The row keeps its full width while the bar is narrower, so text never reflows mid-animation:
-   360px bar - 2 × 2px border - 2 × 8px padding. */
-.overlay-row { width: 340px; }
+   400px bar - 2 × 2px border - 2 × 8px padding. Extra 40px reserves the Recall action. */
+.overlay-row { width: 380px; }
 
 .overlay-bar.is-opening {
   animation:
@@ -42,10 +42,10 @@
 }
 @keyframes overlayBarExpand {
   from { width: 56px; }
-  to   { width: 360px; }
+  to   { width: 400px; }
 }
 @keyframes overlayBarCollapse {
-  from { width: 360px; }
+  from { width: 400px; }
   to   { width: 56px; }
 }
 @keyframes overlayBarLift {

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Mic, Square, X, Loader2 } from 'lucide-react';
+import { Mic, Square, X, Loader2, MessageSquareText } from 'lucide-react';
 import { IconButton, ProgressBar } from '../ui/index.jsx';
 import { formatClock } from '../../lib/format.js';
 import { useNow } from '../../lib/hooks.js';
@@ -283,6 +283,13 @@ export default function MeetingOverlay() {
       <div className="overlay-row flex items-center gap-8">
         <BrandMark dot={BADGES[mode]} busy={mode === 'processing'} />
         <Reveal key={mode} opening={Date.now() - openedAtRef.current < OPEN_CONTENT_DELAY_MS}>{row}</Reveal>
+        <IconButton label="Open Meeting Recall" title="Open Meeting Recall" onClick={() => {
+          void api.openRecall({ requestId: crypto.randomUUID() }).then(reply => {
+            if (reply?.status !== 'complete') setError('Could not open Meeting Recall.');
+          }).catch(() => setError('Could not open Meeting Recall.'));
+        }}>
+          <MessageSquareText size={14} strokeWidth={1.75} aria-hidden="true" />
+        </IconButton>
       </div>
     </section>
   );

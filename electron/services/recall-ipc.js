@@ -7,12 +7,14 @@ const CHANNELS = Object.freeze({
   open: 'recall:open', close: 'recall:close', state: 'recall:get-state', text: 'recall:submit-text',
   audio: 'recall:submit-audio', cancel: 'recall:cancel', source: 'recall:open-source', resize: 'recall:resize',
   testStt: 'recall:test-stt', testTts: 'recall:test-tts', testLlm: 'recall:test-llm',
+  muted: 'recall:set-muted',
 });
 const EVENTS = Object.freeze({ stage: 'recall:stage', answer: 'recall:answer', audio: 'recall:audio', error: 'recall:error' });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CODES = Object.freeze({ INVALID_REQUEST: 'Invalid Recall request.', NOT_READY: 'Recall is not ready. Check the window, credentials and model settings.',
   BUSY: 'Another Recall operation is active. Stop it or wait before testing speech.', NO_SPEECH: 'No speech was detected.',
   INCOMPLETE_TRANSCRIPT: 'Speech was incomplete. Record a shorter clip.', INVALID_ANSWER: 'The answer could not be verified.',
+  MALFORMED_ANSWER: 'The provider returned malformed answer data.', UNSUPPORTED_ANSWER: 'Generated claims did not pass evidence verification.',
   SOURCE_CHANGED: 'Saved evidence changed. Please ask again.', RATE_LIMITED: 'Recall is rate limited. Please try later.',
   UNAVAILABLE: 'Recall is temporarily unavailable.', TIMEOUT: 'Recall timed out.', CANCELLED: 'Recall was cancelled.' });
 const PUBLIC_STAGES = new Set(['idle', 'transcribing', 'retrieving', 'answering', 'speaking']);
@@ -149,8 +151,9 @@ function registerRecallIpc(deps) {
     try { job.owner.frame.send(channel, { ...data, requestId: job.id }); return true; }
     catch { job.controller.abort(Object.assign(new Error(CODES.CANCELLED), { code: 'CANCELLED' })); return false; }
   }
-  function stage(job, name, status = 'running') {
-    job.stage = name; send(job, EVENTS.stage, { stage: name, status }, status !== 'running');
+  function stage(job, name, status = 'running', recognizedQuestion) {
+    job.stage = name; send(job, EVENTS.stage, { stage: name, status,
+      ...(recognizedQuestion === undefined ? {} : { question: recognizedQuestion }) }, status !== 'running');
   }
   const service = (deps.createService || createRecallService)({ ...deps.serviceDeps, getConfig,
     getRecordingState: deps.getRecordingState, onEvent: event => {
@@ -173,7 +176,18 @@ function registerRecallIpc(deps) {
       const result = await Promise.race([Promise.resolve().then(() => { assertCurrent(job); job.started = true; return run(); }), cancelled]);
       assertCurrent(job); stage(job, 'idle', 'complete'); return { requestId: job.id, status: 'complete', ...result };
     } catch (error) {
-      const response = failure(job.id, job.controller.signal.aborted ? job.controller.signal.reason : error);
+      const cause = job.controller.signal.aborted ? job.controller.signal.reason : error;
+      const response = failure(job.id, cause);
+      response.stage = job.stage || 'idle';
+      if (['transcribing', 'speaking'].includes(response.stage)) {
+        const allowed = ['AUTH_REQUIRED', 'AUTH_FAILED', 'FORBIDDEN', 'QUOTA_EXCEEDED', 'RATE_LIMITED', 'INVALID_REQUEST',
+          'SERVICE_UNAVAILABLE', 'UPSTREAM_TIMEOUT', 'HTTP_ERROR', 'NETWORK_ERROR', 'TIMEOUT', 'CANCELLED',
+          'INVALID_RESPONSE', 'RESPONSE_TOO_LARGE', 'INVALID_AUDIO', 'NO_SPEECH', 'INCOMPLETE_TRANSCRIPT'];
+        if (allowed.includes(cause?.code)) response.error.speechCode = cause.code;
+        if (Number.isInteger(cause?.status) && cause.status >= 400 && cause.status <= 599) response.error.httpStatus = cause.status;
+        if (response.stage === 'speaking' && response.error.code === 'UNAVAILABLE') response.error.message =
+          ['INVALID_RESPONSE', 'RESPONSE_TOO_LARGE'].includes(cause?.code) ? 'Gnani returned invalid speech audio.' : 'Gnani synthesis failed. Check speech access and connectivity.';
+      }
       send(job, EVENTS.error, { stage: job.stage || 'idle', error: response.error }, true);
       stage(job, 'idle', response.status === 'cancelled' ? 'cancelled' : 'error'); return response;
     } finally {
@@ -194,6 +208,7 @@ function registerRecallIpc(deps) {
       stage(job, 'transcribing');
       const result = await speech.transcribe({ apiKey: speechConfig(cfg), audio, signal: job.controller.signal }, deps.speechDeps);
       assertCurrent(job); text = question(result?.text);
+      stage(job, 'retrieving', 'running', text);
     }
     const answer = await service.ask({ requestId: job.id, question: text, locale: payload.locale, signal: job.controller.signal });
     assertCurrent(job);
@@ -205,10 +220,10 @@ function registerRecallIpc(deps) {
     // Service alone constructs sources; IPC never accepts client evidence/locators.
     if (!send(job, EVENTS.answer, answer)) fail('CANCELLED');
     latestAnswer = { id: job.id, owner: job.owner };
-    if (audio && !(payload.muted ?? cfg.recallMuted)) {
+    if (audio && !job.muted) {
       assertCurrent(job); stage(job, 'speaking');
       const result = await speech.synthesize({ apiKey: speechConfig(cfg), ...ttsOptions(cfg, answer.text), signal: job.controller.signal }, deps.speechDeps);
-      assertCurrent(job); send(job, EVENTS.audio, outputAudio(result));
+      assertCurrent(job); if (!job.muted) send(job, EVENTS.audio, outputAudio(result));
     }
     return {};
   }
@@ -219,6 +234,7 @@ function registerRecallIpc(deps) {
     if (audio) { speechConfig(cfg); if (!(payload.muted ?? cfg.recallMuted)) ttsOptions(cfg, 'Recall'); }
     acceptId(owner, payload.requestId);
     const job = newJob(owner, payload.requestId, 'turn');
+    job.voice = !!audio; job.muted = payload.muted ?? cfg.recallMuted; job.config = cfg;
     turn = job; latestAnswer = null;
     if (audio) reserveSpeech(job);
     // A speech lease lasts until the underlying pipeline settles, including an abort-ignoring
@@ -247,7 +263,10 @@ function registerRecallIpc(deps) {
     });
   }
   handle(CHANNELS.open, ['main', 'overlay', 'recall'], (_owner, p) => {
-    request(p); if (!alive(recallWindow)) fail('NOT_READY'); recallWindow.show(); recallWindow.focus();
+    request(p);
+    if (deps.openRecallWindow) deps.openRecallWindow();
+    if (!alive(recallWindow)) fail('NOT_READY');
+    if (!deps.openRecallWindow) { recallWindow.show(); recallWindow.focus(); }
     return { requestId: p.requestId, status: 'complete', opened: true };
   });
   handle(CHANNELS.close, ['main', 'recall'], (_owner, p) => {
@@ -268,7 +287,7 @@ function registerRecallIpc(deps) {
       status: turn ? 'running' : 'complete', speechBusy: !!speechOwner, preferences: preferences(cfg),
       readiness: { text: { configured: !!configured, access: 'unverified' },
         stt: { configured: sttConfigured, access: 'unverified' },
-        tts: { configured: ttsConfigured, access: 'unverified' }, shortcut: cfg.recallShortcut === '' ? 'disabled' : 'unregistered' },
+        tts: { configured: ttsConfigured, access: 'unverified' }, shortcut: deps.getShortcutState?.() || (cfg.recallShortcut === '' ? 'disabled' : 'unregistered') },
       disclosures: { cloud: 'Questions and selected saved-meeting evidence go to the answering LLM. Voice audio and synthesized text go to Gnani.',
         loopback: 'System loopback may record spoken assistant answers, even through headphones. Mute or stop Recall audio; the meeting will not be paused.',
         explicitVoiceStart: true } };
@@ -291,6 +310,16 @@ function registerRecallIpc(deps) {
     if (job.kind === 'turn') service.cancel({ requestId: p.requestId, targetRequestId: job.id });
     return { requestId: p.requestId, status: 'complete', cancelled: true };
   });
+  // Runtime speech policy for exactly this owned voice turn; never writes preferences/keys.
+  handle(CHANNELS.muted, ['recall'], (owner, p) => {
+    request(p, ['targetRequestId', 'muted']);
+    if (!idOk(p.targetRequestId) || typeof p.muted !== 'boolean' || !turn?.voice || turn.id !== p.targetRequestId ||
+        turn.owner.wc !== owner.wc || turn.owner.frame !== owner.frame || turn.owner.epoch !== owner.epoch) fail('INVALID_REQUEST');
+    if (!p.muted) ttsOptions(turn.config, 'Recall');
+    turn.muted = p.muted;
+    if (p.muted && turn.stage === 'speaking') turn.controller.abort(Object.assign(new Error(CODES.CANCELLED), { code: 'CANCELLED' }));
+    return { requestId: p.requestId, status: 'complete', muted: p.muted };
+  });
   handle(CHANNELS.source, ['recall'], (owner, p) => {
     request(p, ['answerRequestId', 'evidenceId']);
     if (!idOk(p.answerRequestId) || typeof p.evidenceId !== 'string' || !/^E[0-9a-f]{24}$/.test(p.evidenceId)) fail('INVALID_REQUEST');
@@ -305,7 +334,10 @@ function registerRecallIpc(deps) {
   handle(CHANNELS.resize, ['recall'], (owner, p) => {
     request(p, ['width', 'height']);
     if (!Number.isInteger(p.width) || p.width < 320 || p.width > 640 || !Number.isInteger(p.height) || p.height < 220 || p.height > 800) fail('INVALID_REQUEST');
-    owner.win.setContentSize(p.width, p.height); return { requestId: p.requestId, status: 'complete' };
+    if (deps.resizeRecallWindow) {
+      if (!deps.resizeRecallWindow(owner.win, p.width, p.height)) fail('NOT_READY');
+    } else owner.win.setContentSize(p.width, p.height);
+    return { requestId: p.requestId, status: 'complete' };
   });
   async function test(owner, p, kind) {
     request(p, kind === 'stt' ? ['values', 'audio', 'mimeType'] : kind === 'tts' ? ['values', 'text'] : ['values']);

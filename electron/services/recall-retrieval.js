@@ -161,7 +161,7 @@ function timing(segment, pasted) {
   return start !== null && end !== null && end > start ? { startSeconds: start, endSeconds: end } : { startSeconds: null, endSeconds: null };
 }
 
-function passages(s) {
+function passages(s, includeTranscriptContext = false) {
   const out = [];
   const seen = new Set();
   let contentHash;
@@ -243,6 +243,21 @@ function passages(s) {
     if (!seg || typeof seg !== 'object') return;
     add(seg.text, text(seg.speaker) ? `Transcript · ${text(seg.speaker)}` : 'Transcript',
       { kind: 'transcript', segmentIndex: i, ...timing(seg, notes._sttService === 'none') }, 1);
+    if (includeTranscriptContext) {
+      // A scoped action query needs adjacent assignment/condition sentences together.
+      // Keep whole segments and speaker labels, with deterministic, revalidatable boundaries.
+      let body = '', end = i;
+      for (let j = i; j < Math.min(i + 4, s.transcript.length); j++) {
+        const item = s.transcript[j];
+        if (!item || !substantive(text(item.text))) break;
+        const line = `${text(item.speaker) ? `${text(item.speaker)}: ` : ''}${text(item.text)}`;
+        if ((body + '\n' + line).length > LIMITS.passage) break;
+        body += `${body ? '\n' : ''}${line}`; end = j;
+      }
+      if (end > i) add(body, 'Transcript context', { kind: 'transcript', segmentIndex: i, segmentEnd: end,
+        ...timing({ startTime: timing(seg, notes._sttService === 'none').startSeconds,
+          endTime: timing(s.transcript[end], notes._sttService === 'none').endSeconds }, notes._sttService === 'none') }, 1.1, true);
+    }
   });
   return out;
 }
@@ -283,8 +298,22 @@ function similarity(a, b) {
   for (const t of a.terms.keys()) if (b.terms.has(t)) overlap++;
   return overlap / (a.terms.size + b.terms.size - overlap || 1);
 }
-function select(candidates, budget, maxPassages) {
+function select(candidates, budget, maxPassages, requiredSessions = [], facets = []) {
   const chosen = [];
+  // For scoped comparisons, reserve actual requested fields, round-robin across meetings.
+  // This keeps action/owner/due projections and budget conditions ahead of title-only matches.
+  for (const facet of facets) for (const id of requiredSessions) {
+    if (chosen.some(c => c.evidence.sessionId === id && facet(c.evidence))) continue;
+    const i = candidates.findIndex(c => c.evidence.sessionId === id && facet(c.evidence) &&
+      jsonBytes([...chosen.map(p => p.evidence), c.evidence]) <= budget);
+    if (i >= 0 && chosen.length < maxPassages) chosen.push(candidates.splice(i, 1)[0]);
+  }
+  // Reserve one matching passage per selected meeting before filling remaining slots.
+  for (const id of requiredSessions) {
+    const i = candidates.findIndex(c => c.evidence.sessionId === id &&
+      jsonBytes([...chosen.map(p => p.evidence), c.evidence]) <= budget);
+    if (i >= 0 && chosen.length < maxPassages) chosen.push(candidates.splice(i, 1)[0]);
+  }
   while (candidates.length && chosen.length < maxPassages) {
     let bestIndex = -1;
     let bestScore = -1;
@@ -313,23 +342,54 @@ function validRequestId(requestId) { if (typeof requestId !== 'string' || !UUID.
 
 /** All current rows, no recent limit; result contains evidence only, never generated answers. */
 function retrieveEvidence({ requestId, question, expansion = [], activeRecordingId = null, processingSessionIds = [],
-  recallContextBudget = LIMITS.contextBytes, maxPassages = LIMITS.defaultPassages } = {}, deps = {}) {
+  recallContextBudget = LIMITS.contextBytes, maxPassages = LIMITS.defaultPassages, includeAvailability = false, latestMeetings = null } = {}, deps = {}) {
   validRequestId(requestId);
   const q = queryOf(question, expansion);
   const excluded = exclusions({ activeRecordingId, processingSessionIds });
   if (!Number.isInteger(recallContextBudget) || recallContextBudget < 2 || recallContextBudget > LIMITS.contextBytes ||
-      !Number.isInteger(maxPassages) || maxPassages < 1 || maxPassages > 10) fail('INVALID_REQUEST');
+      !Number.isInteger(maxPassages) || maxPassages < 1 || maxPassages > 10 || typeof includeAvailability !== 'boolean' ||
+      (latestMeetings !== null && (!Number.isInteger(latestMeetings) || latestMeetings < 1 || latestMeetings > 5))) fail('INVALID_REQUEST');
   const db = storeOf(deps);
   const rows = read(db, 'listSessions');
   if (!Array.isArray(rows)) fail('UNAVAILABLE');
-  const candidates = [];
+  let sessions = [];
   for (const row of rows) {
     if (row?.status !== 'complete' || excluded.has(row.id)) continue;
     const s = snapshot(row);
-    if (s) for (const passage of passages(s)) candidates.push(passage);
+    if (!s) continue;
+    const extracted = passages(s, latestMeetings !== null);
+    if (extracted.length) sessions.push({ s, extracted });
   }
-  const evidence = select(rank(candidates, q), recallContextBudget, maxPassages);
-  return revalidateEvidence({ requestId, evidence, activeRecordingId, processingSessionIds }, { db });
+  if (latestMeetings !== null) sessions = sessions.filter(({ s }) => typeof s.startedAt === 'string' && Number.isFinite(Date.parse(s.startedAt)))
+    .sort((a, b) => Date.parse(b.s.startedAt) - Date.parse(a.s.startedAt) || compare(a.s.sessionId, b.s.sessionId)).slice(0, latestMeetings);
+  const candidates = sessions.flatMap(s => s.extracted);
+  try { deps.onDiagnostic?.({ stage: 'extraction', code: 'PASSAGES_EXTRACTED', selected: sessions.length, passages: candidates.length }); } catch { /* observer */ }
+  const agenda = latestMeetings !== null && /\b(agenda|summary|overview|topics)\b/i.test(question);
+  const actions = latestMeetings !== null && /\b(action|actions|owner|deadline|task|tasks)\b/i.test(question);
+  const budget = latestMeetings !== null && /\b(budget|approved|approval)\b/i.test(question);
+  const overview = e => e.locator.kind === 'notes' && ['summary', 'sections', 'topics', 'key_points'].includes(e.locator.path?.[0]);
+  const action = e => e.section === 'Action item';
+  const financial = e => /\b(budget|fund\w*|cost\w*|spend\w*|price|money|rupees?|dollars?)\b|₹|\$|बजट/iu.test(e.text);
+  // A global cutoff can discard a weaker meeting's relevant fields. Rank each selected
+  // meeting independently; ordinary library retrieval keeps its existing scoring/cutoff.
+  const ranked = latestMeetings === null ? rank(candidates, q) : sessions.flatMap(({ extracted }) => {
+    const matches = rank(extracted, q);
+    if (!q.numbers.size) for (const c of extracted) {
+      if (!matches.includes(c) && ((agenda && overview(c.evidence)) || (actions && action(c.evidence)) || (budget && financial(c.evidence)))) {
+        c.score = 0.1; matches.push(c);
+      }
+    }
+    return matches;
+  }).sort((a, b) => b.score - a.score || compare(a.evidence.evidenceId, b.evidence.evidenceId));
+  const hadMatches = ranked.length > 0;
+  try { deps.onDiagnostic?.({ stage: 'ranking', code: 'PASSAGES_RANKED', passages: ranked.length }); } catch { /* observer */ }
+  const facets = [...(agenda ? [overview] : []), ...(actions ? [action] : []), ...(budget ? [financial] : [])];
+  const evidence = select(ranked, recallContextBudget, maxPassages, latestMeetings === null ? [] : sessions.map(s => s.s.sessionId), facets);
+  const checked = revalidateEvidence({ requestId, evidence, activeRecordingId, processingSessionIds }, { db });
+  return { ...checked,
+    ...(includeAvailability ? { availability: candidates.length ? 'searchable' : 'empty', budgetLimited: hadMatches && !evidence.length } : {}),
+    ...(latestMeetings === null ? {} : { meetings: { requested: latestMeetings, available: sessions.length,
+      retrieved: new Set(evidence.map(e => e.sessionId)).size } }) };
 }
 
 /** Reconstruct known locators from fresh records, rather than resolving arbitrary renderer paths. */
@@ -348,7 +408,7 @@ function revalidateEvidence({ requestId, evidence, activeRecordingId = null, pro
       const row = read(db, 'getSession', item.sessionId);
       if (!row || row.status !== 'complete' || excluded.has(row.id)) fail('SOURCE_CHANGED');
       const s = snapshot(row);
-      current.set(item.sessionId, s ? passages(s).map(c => c.evidence) : []);
+      current.set(item.sessionId, s ? passages(s, true).map(c => c.evidence) : []);
     }
     const match = current.get(item.sessionId).find(p => p.evidenceId === item.evidenceId);
     if (!match || canonical(match) !== canonical(item)) fail('SOURCE_CHANGED');

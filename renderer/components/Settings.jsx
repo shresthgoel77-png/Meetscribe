@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { SlidersHorizontal, AudioLines, NotebookPen, Blocks, Cpu } from 'lucide-react';
+import { SlidersHorizontal, AudioLines, NotebookPen, MessageSquareText, Blocks, Cpu } from 'lucide-react';
 import { useApp } from '../lib/app-context.js';
 import { providerConfigKeys } from '../lib/providers.js';
 import { PageHeader, SaveBar, SegmentedControl } from './ui/index.jsx';
 import GeneralSection from './settings/GeneralSection.jsx';
 import TranscriptionSection from './settings/TranscriptionSection.jsx';
 import NotesSection from './settings/NotesSection.jsx';
+import MeetingRecallSection from './settings/MeetingRecallSection.jsx';
+import { RECALL_DEFAULTS, recallFormFromConfig, recallSettingsError } from '../lib/recallSettings.js';
 import IntegrationsSection from './settings/IntegrationsSection.jsx';
 import SystemSection from './settings/SystemSection.jsx';
 
@@ -13,6 +15,7 @@ const TABS = [
   { value: 'general', label: 'General', icon: SlidersHorizontal },
   { value: 'transcription', label: 'Transcription', icon: AudioLines },
   { value: 'notes', label: 'Notes', icon: NotebookPen },
+  { value: 'recall', label: 'Meeting Recall', icon: MessageSquareText },
   { value: 'integrations', label: 'Integrations', icon: Blocks },
   { value: 'system', label: 'System', icon: Cpu },
 ];
@@ -33,6 +36,7 @@ function storeTab(tab) {
 }
 
 const DEFAULT_FORM = {
+  ...RECALL_DEFAULTS,
   sttService: 'google',
   sttModels: {},
   llmProvider: 'gemini',
@@ -71,6 +75,7 @@ function formFromConfig(cfg, providers) {
 
   return {
     ...providerFields,
+    ...recallFormFromConfig(cfg),
     sttService: cfg.sttService || 'google',
     sttModels: cfg.sttModels || {},
     llmProvider: cfg.llmProvider || 'gemini',
@@ -117,6 +122,7 @@ export default function Settings({ onSave }) {
   const [defaultMdSystemPrompt, setDefaultMdSystemPrompt] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [recallReset, setRecallReset] = useState(0);
 
   const isDirty = useMemo(() => {
     if (!initialForm) return false;
@@ -198,6 +204,8 @@ export default function Settings({ onSave }) {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const recallError = recallSettingsError(form, providers?.llm);
+      if (recallError) throw new Error(recallError);
       await onSave(form);
       setInitialForm({ ...form });
       setSaved(true);
@@ -209,6 +217,7 @@ export default function Settings({ onSave }) {
   };
 
   const handleDiscard = () => {
+    setRecallReset((value) => value + 1);
     if (initialForm) setForm(initialForm);
   };
 
@@ -244,6 +253,7 @@ export default function Settings({ onSave }) {
               />
             )}
             {t.value === 'integrations' && <IntegrationsSection form={form} onChange={handleChange} />}
+            {t.value === 'recall' && <MeetingRecallSection form={form} onChange={handleChange} active={tab === 'recall'} resetToken={recallReset} savedShortcut={initialForm?.recallShortcut} />}
             {t.value === 'system' && <SystemSection active={tab === 'system'} />}
           </div>
         ))}

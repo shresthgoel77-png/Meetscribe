@@ -145,6 +145,21 @@ describe('Recall Gnani STT', () => {
 });
 
 describe('Recall Gnani TTS', () => {
+  it('normalizes observed unknown RIFF/data lengths only after receiving a complete bounded PCM body', async () => {
+    const streamed = Buffer.from(speech); streamed.writeUInt32LE(0xffffffff, 4); streamed.writeUInt32LE(0xffffffff, 40);
+    const result = await synthesize({ apiKey, text: 'Neutral test.' }, { fetchImpl: async () => ttsResponse(streamed) });
+    expect(result.audio).toEqual(speech); expect(result.sampleRate).toBe(24000);
+    expect(streamed.readUInt32LE(4)).toBe(0xffffffff);
+    await expect(transcribe({ apiKey, audio: streamed }, { fetchImpl: vi.fn() })).rejects.toHaveProperty('code', 'INVALID_AUDIO');
+  });
+  it.each(['odd samples', 'stereo', 'wrong rate', 'partial sentinel'])('still rejects streamed WAV with %s', async kind => {
+    let audio = Buffer.from(speech); audio.writeUInt32LE(0xffffffff, 4); audio.writeUInt32LE(0xffffffff, 40);
+    if (kind === 'odd samples') audio = audio.subarray(0, -1);
+    if (kind === 'stereo') audio.writeUInt16LE(2, 22);
+    if (kind === 'wrong rate') audio.writeUInt32LE(16000, 24);
+    if (kind === 'partial sentinel') audio.writeUInt32LE(audio.length - 44, 40);
+    await expect(synthesize({ apiKey, text: 'Neutral test.' }, { fetchImpl: async () => ttsResponse(audio) })).rejects.toHaveProperty('code', 'INVALID_RESPONSE');
+  });
   it('requests the documented 24 kHz mono 16-bit WAV and returns the binary bytes unchanged', async () => {
     const fetchImpl = vi.fn(async () => ttsResponse());
     const result = await synthesize({ apiKey, text: ' Test audio. ', language: 'en-IN', speed: 1.05 }, { fetchImpl });

@@ -3,6 +3,7 @@ const { DEFAULT_SYSTEM_PROMPT } = require('../services/prompts');
 const { sttRegistry, llmRegistry, providerConfigKeys } = require('../providers');
 const { migrateLegacyModels } = require('./configMigration');
 const { DEFAULT_MAC_CAPTURE_STRATEGY, normalizeMacCaptureStrategy } = require('../audio/mac-capture');
+const recallShortcut = require('./recall-shortcut.json');
 
 const schema = {
   notionToken: {
@@ -274,7 +275,16 @@ function getConfig() {
   };
 }
 
+// Syntax only. Never probe/reserve an unsaved OS shortcut; registration is a later stage.
+function validateRecallShortcut(value) {
+  if (typeof value !== 'string' || value.length > 80 || /\s/.test(value) ||
+      (value !== '' && !new RegExp(recallShortcut.pattern).test(value.toLowerCase()))) {
+    throw new Error('Invalid Recall shortcut. Use modifiers joined with + and one key, or leave empty to disable.');
+  }
+}
+
 function setConfig(key, value) {
+  if (key === 'recallShortcut') validateRecallShortcut(value);
   store.set(key, value);
   // Keep key aliases in sync
   if (key === 'notionApiKey') store.set('notionToken', value);
@@ -288,6 +298,8 @@ function setConfig(key, value) {
 }
 
 function setMultipleConfig(updates) {
+  // Reject before any unrelated setting/alias is written by a mixed Settings save.
+  if (Object.hasOwn(updates, 'recallShortcut')) validateRecallShortcut(updates.recallShortcut);
   for (const [key, value] of Object.entries(updates)) {
     setConfig(key, value);
   }
@@ -306,6 +318,7 @@ module.exports = {
   getConfig,
   setConfig,
   setMultipleConfig,
+  validateRecallShortcut,
   isFirstRun,
   markOnboardingComplete,
   DEFAULT_SYSTEM_PROMPT,
